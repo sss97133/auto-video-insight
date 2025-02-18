@@ -4,9 +4,10 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardHeader, CardTitle, CardContent } from "../ui/card";
 import { Badge } from "../ui/badge";
-import { Car } from "lucide-react";
+import { Car, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { Button } from "../ui/button";
 
 const VehicleList = () => {
   const { data: vehicles, isLoading } = useQuery({
@@ -26,10 +27,65 @@ const VehicleList = () => {
     },
   });
 
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      // Upload image to Supabase Storage
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Math.random()}.${fileExt}`;
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('vehicle-images')
+        .upload(fileName, file);
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('vehicle-images')
+        .getPublicUrl(fileName);
+
+      if (!urlData.publicUrl) throw new Error('Failed to get public URL');
+
+      // Call the license plate detection function
+      const response = await supabase.functions.invoke('detect-license-plate', {
+        body: {
+          image_url: urlData.publicUrl,
+          camera_id: null // Manual upload
+        }
+      });
+
+      if (response.error) throw new Error(response.error);
+
+      toast.success('License plate detection completed');
+    } catch (error) {
+      console.error('Error processing image:', error);
+      toast.error('Failed to process image');
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold text-gray-800">Vehicle Tracking</h2>
+        <div className="relative">
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handleImageUpload}
+            className="hidden"
+            id="image-upload"
+          />
+          <Button
+            variant="outline"
+            onClick={() => document.getElementById('image-upload')?.click()}
+            className="flex items-center gap-2"
+          >
+            <Upload size={16} />
+            Test with Image
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (
