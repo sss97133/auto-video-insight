@@ -2,7 +2,7 @@
 import React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { AlertTriangle, Bell, Info, ShieldAlert, Car, Tool, AlertCircle } from "lucide-react";
+import { AlertTriangle, Bell, Info, ShieldAlert, Car, Wrench, AlertCircle } from "lucide-react";
 import { Card } from "./ui/card";
 import { toast } from "sonner";
 import { Badge } from "./ui/badge";
@@ -96,7 +96,7 @@ const AlertsDisplay = () => {
       case 'suspicious_vehicle':
         return <Car className="h-5 w-5" />;
       case 'maintenance_needed':
-        return <Tool className="h-5 w-5" />;
+        return <Wrench className="h-5 w-5" />;
       case 'equipment_malfunction':
         return <AlertCircle className="h-5 w-5" />;
       case 'speed_violation':
@@ -190,4 +190,3 @@ const AlertsDisplay = () => {
 };
 
 export default AlertsDisplay;
-
