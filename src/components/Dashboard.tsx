@@ -9,6 +9,7 @@ import CameraGrid from "./dashboard/CameraGrid";
 import StatsSection from "./dashboard/StatsSection";
 import AnalyticsDashboard from "./analytics/AnalyticsDashboard";
 import VehicleList from "./vehicles/VehicleList";
+import AuditList from "./audits/AuditList";
 
 const Dashboard = () => {
   const [isModalOpen, setIsModalOpen] = React.useState(false);
@@ -78,7 +79,10 @@ const Dashboard = () => {
           </section>
         </div>
 
-        <VehicleList />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <VehicleList />
+          <AuditList />
+        </div>
 
         <AnalyticsDashboard />
       </main>

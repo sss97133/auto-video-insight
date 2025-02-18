@@ -111,6 +111,85 @@ export type Database = {
           },
         ]
       }
+      audit_items: {
+        Row: {
+          audit_id: string
+          category: string
+          created_at: string
+          id: string
+          item_name: string
+          notes: string | null
+          status: string | null
+        }
+        Insert: {
+          audit_id: string
+          category: string
+          created_at?: string
+          id?: string
+          item_name: string
+          notes?: string | null
+          status?: string | null
+        }
+        Update: {
+          audit_id?: string
+          category?: string
+          created_at?: string
+          id?: string
+          item_name?: string
+          notes?: string | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_items_audit_id_fkey"
+            columns: ["audit_id"]
+            isOneToOne: false
+            referencedRelation: "audits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      audits: {
+        Row: {
+          checklist: Json | null
+          completed_at: string | null
+          created_at: string
+          id: string
+          inspector: string | null
+          notes: string | null
+          status: string | null
+          vehicle_id: string
+        }
+        Insert: {
+          checklist?: Json | null
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          inspector?: string | null
+          notes?: string | null
+          status?: string | null
+          vehicle_id: string
+        }
+        Update: {
+          checklist?: Json | null
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          inspector?: string | null
+          notes?: string | null
+          status?: string | null
+          vehicle_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audits_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cameras: {
         Row: {
           configuration: Json | null
