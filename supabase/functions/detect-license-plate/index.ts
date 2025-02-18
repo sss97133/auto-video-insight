@@ -1,7 +1,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
-import { RekognitionClient, DetectTextCommand } from "npm:@aws-sdk/client-rekognition"
+import { RekognitionClient, DetectTextCommand, DetectLabelsCommand } from "npm:@aws-sdk/client-rekognition"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -9,7 +9,6 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
@@ -33,14 +32,14 @@ serve(async (req) => {
 
     // Initialize AWS Rekognition client
     const rekognition = new RekognitionClient({
-      region: "us-east-1", // Update this to your AWS region
+      region: "us-east-1",
       credentials: {
         accessKeyId: Deno.env.get('AWS_ACCESS_KEY_ID') ?? '',
         secretAccessKey: Deno.env.get('AWS_SECRET_ACCESS_KEY') ?? '',
       },
     })
 
-    // Detect text in the image using AWS Rekognition
+    // Detect text for license plate
     const detectTextCommand = new DetectTextCommand({
       Image: {
         Bytes: new Uint8Array(imageBuffer)
@@ -49,11 +48,19 @@ serve(async (req) => {
 
     const textDetectionResult = await rekognition.send(detectTextCommand)
     
-    // Find the most likely license plate from detected text
+    // Detect labels for vehicle attributes
+    const detectLabelsCommand = new DetectLabelsCommand({
+      Image: {
+        Bytes: new Uint8Array(imageBuffer)
+      },
+      MinConfidence: 50
+    })
+
+    const labelsResult = await rekognition.send(detectLabelsCommand)
+    
+    // Process license plate detection
     let bestMatch = null
     let highestConfidence = 0
-
-    // Basic regex for license plate pattern (customize based on your region's format)
     const licensePlatePattern = /^[A-Z0-9]{5,8}$/
 
     textDetectionResult.TextDetections?.forEach((detection) => {
@@ -73,7 +80,56 @@ serve(async (req) => {
       throw new Error('No license plate detected in the image')
     }
 
-    console.log('Detected license plate:', bestMatch)
+    // Process vehicle attributes from labels
+    const labels = labelsResult.Labels || []
+    const detectedAttributes: Record<string, any> = {}
+    let vehicleType = null
+    let color = null
+    let orientation = null
+    let qualityScore = 0
+    let hasSunroof = false
+    let hasSpoiler = false
+
+    labels.forEach(label => {
+      if (label.Name && label.Confidence) {
+        detectedAttributes[label.Name] = label.Confidence / 100
+
+        // Determine vehicle type
+        if (['Sedan', 'SUV', 'Truck', 'Van', 'Coupe', 'Hatchback'].includes(label.Name)) {
+          vehicleType = label.Name
+        }
+
+        // Check for specific features
+        if (label.Name === 'Sunroof') hasSunroof = true
+        if (label.Name === 'Spoiler') hasSpoiler = true
+
+        // Detect orientation
+        if (['Front View', 'Rear View', 'Side View'].includes(label.Name)) {
+          orientation = label.Name
+        }
+
+        // Detect colors
+        if (['Black', 'White', 'Red', 'Blue', 'Silver', 'Gray', 'Green', 'Yellow'].includes(label.Name)) {
+          color = label.Name
+        }
+
+        // Update quality score based on image quality labels
+        if (['Clear', 'Sharp', 'Well Lit'].includes(label.Name)) {
+          qualityScore = Math.max(qualityScore, label.Confidence / 100)
+        }
+      }
+    })
+
+    console.log('Detected vehicle attributes:', {
+      license_plate: bestMatch.text,
+      vehicle_type: vehicleType,
+      color,
+      orientation,
+      quality_score: qualityScore,
+      has_sunroof: hasSunroof,
+      has_spoiler: hasSpoiler,
+      detected_attributes: detectedAttributes
+    })
 
     // Store the vehicle information in the database
     const { data: vehicleData, error: vehicleError } = await supabaseAdmin
@@ -83,7 +139,14 @@ serve(async (req) => {
         confidence: bestMatch.confidence,
         image_url: image_url,
         detected_at: new Date().toISOString(),
-        last_seen: new Date().toISOString()
+        last_seen: new Date().toISOString(),
+        vehicle_type: vehicleType,
+        color: color,
+        orientation: orientation,
+        quality_score: qualityScore,
+        has_sunroof: hasSunroof,
+        has_spoiler: hasSpoiler,
+        detected_attributes: detectedAttributes
       }, {
         onConflict: 'license_plate',
         ignoreDuplicates: false
@@ -109,7 +172,9 @@ serve(async (req) => {
         event_metadata: {
           license_plate: bestMatch.text,
           confidence: bestMatch.confidence,
-          image_url: image_url
+          image_url: image_url,
+          vehicle_type: vehicleType,
+          color: color
         }
       })
 
@@ -127,7 +192,15 @@ serve(async (req) => {
         event_data: {
           license_plate: bestMatch.text,
           confidence: bestMatch.confidence,
-          image_url: image_url
+          image_url: image_url,
+          vehicle_attributes: {
+            type: vehicleType,
+            color: color,
+            orientation: orientation,
+            quality_score: qualityScore,
+            has_sunroof: hasSunroof,
+            has_spoiler: hasSpoiler
+          }
         }
       })
 
@@ -141,7 +214,13 @@ serve(async (req) => {
         data: {
           license_plate: bestMatch.text,
           confidence: bestMatch.confidence,
-          vehicle_id: vehicleData.id
+          vehicle_id: vehicleData.id,
+          vehicle_type: vehicleType,
+          color: color,
+          orientation: orientation,
+          quality_score: qualityScore,
+          has_sunroof: hasSunroof,
+          has_spoiler: hasSpoiler
         }
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

@@ -272,39 +272,60 @@ export type Database = {
       }
       vehicles: {
         Row: {
+          color: string | null
           confidence: number | null
           created_at: string
           detected_at: string | null
+          detected_attributes: Json | null
+          has_spoiler: boolean | null
+          has_sunroof: boolean | null
           id: string
           image_url: string | null
           last_seen: string | null
           license_plate: string
           make: string | null
           model: string | null
+          orientation: string | null
+          quality_score: number | null
+          vehicle_type: string | null
           year: number | null
         }
         Insert: {
+          color?: string | null
           confidence?: number | null
           created_at?: string
           detected_at?: string | null
+          detected_attributes?: Json | null
+          has_spoiler?: boolean | null
+          has_sunroof?: boolean | null
           id?: string
           image_url?: string | null
           last_seen?: string | null
           license_plate: string
           make?: string | null
           model?: string | null
+          orientation?: string | null
+          quality_score?: number | null
+          vehicle_type?: string | null
           year?: number | null
         }
         Update: {
+          color?: string | null
           confidence?: number | null
           created_at?: string
           detected_at?: string | null
+          detected_attributes?: Json | null
+          has_spoiler?: boolean | null
+          has_sunroof?: boolean | null
           id?: string
           image_url?: string | null
           last_seen?: string | null
           license_plate?: string
           make?: string | null
           model?: string | null
+          orientation?: string | null
+          quality_score?: number | null
+          vehicle_type?: string | null
           year?: number | null
         }
         Relationships: []

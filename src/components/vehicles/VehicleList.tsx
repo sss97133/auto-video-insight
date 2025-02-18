@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardHeader, CardTitle, CardContent } from "../ui/card";
 import { Badge } from "../ui/badge";
-import { Car, Upload } from "lucide-react";
+import { Car, Upload, PaintBucket, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { Button } from "../ui/button";
@@ -58,11 +58,17 @@ const VehicleList = () => {
 
       if (response.error) throw new Error(response.error);
 
-      toast.success('License plate detection completed');
+      toast.success('Vehicle detection completed');
     } catch (error) {
       console.error('Error processing image:', error);
       toast.error('Failed to process image');
     }
+  };
+
+  const getQualityBadgeVariant = (score: number) => {
+    if (score >= 0.8) return "success";
+    if (score >= 0.6) return "warning";
+    return "destructive";
   };
 
   return (
@@ -110,11 +116,50 @@ const VehicleList = () => {
                       {vehicle.make} {vehicle.model} {vehicle.year}
                     </span>
                   </div>
+
+                  {/* Vehicle Type and Color */}
+                  {(vehicle.vehicle_type || vehicle.color) && (
+                    <div className="flex items-center gap-2">
+                      <PaintBucket className="w-4 h-4 text-gray-500" />
+                      <span className="text-sm text-gray-600">
+                        {[vehicle.color, vehicle.vehicle_type].filter(Boolean).join(' ')}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Vehicle Features */}
+                  {(vehicle.has_sunroof || vehicle.has_spoiler) && (
+                    <div className="flex gap-2">
+                      {vehicle.has_sunroof && (
+                        <Badge variant="outline">Sunroof</Badge>
+                      )}
+                      {vehicle.has_spoiler && (
+                        <Badge variant="outline">Spoiler</Badge>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Orientation and Quality Score */}
+                  {(vehicle.orientation || vehicle.quality_score) && (
+                    <div className="flex items-center gap-2">
+                      <ArrowRight className="w-4 h-4 text-gray-500" />
+                      <span className="text-sm text-gray-600">
+                        {vehicle.orientation}
+                      </span>
+                      {vehicle.quality_score && (
+                        <Badge variant={getQualityBadgeVariant(vehicle.quality_score)}>
+                          Quality: {Math.round(vehicle.quality_score * 100)}%
+                        </Badge>
+                      )}
+                    </div>
+                  )}
+
                   {vehicle.last_seen && (
                     <div className="text-xs text-gray-500">
                       Last seen: {format(new Date(vehicle.last_seen), 'MMM dd, yyyy HH:mm')}
                     </div>
                   )}
+                  
                   {vehicle.image_url && (
                     <img 
                       src={vehicle.image_url} 
