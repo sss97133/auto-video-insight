@@ -9,6 +9,57 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      alerts: {
+        Row: {
+          alert_type: string
+          camera_id: string | null
+          created_at: string
+          id: string
+          message: string
+          metadata: Json | null
+          severity: string
+          status: string | null
+          vehicle_id: string | null
+        }
+        Insert: {
+          alert_type: string
+          camera_id?: string | null
+          created_at?: string
+          id?: string
+          message: string
+          metadata?: Json | null
+          severity: string
+          status?: string | null
+          vehicle_id?: string | null
+        }
+        Update: {
+          alert_type?: string
+          camera_id?: string | null
+          created_at?: string
+          id?: string
+          message?: string
+          metadata?: Json | null
+          severity?: string
+          status?: string | null
+          vehicle_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alerts_camera_id_fkey"
+            columns: ["camera_id"]
+            isOneToOne: false
+            referencedRelation: "cameras"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alerts_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       analytics: {
         Row: {
           camera_id: string | null
@@ -92,8 +143,11 @@ export type Database = {
       }
       vehicles: {
         Row: {
+          confidence: number | null
           created_at: string
+          detected_at: string | null
           id: string
+          image_url: string | null
           last_seen: string | null
           license_plate: string
           make: string | null
@@ -101,8 +155,11 @@ export type Database = {
           year: number | null
         }
         Insert: {
+          confidence?: number | null
           created_at?: string
+          detected_at?: string | null
           id?: string
+          image_url?: string | null
           last_seen?: string | null
           license_plate: string
           make?: string | null
@@ -110,8 +167,11 @@ export type Database = {
           year?: number | null
         }
         Update: {
+          confidence?: number | null
           created_at?: string
+          detected_at?: string | null
           id?: string
+          image_url?: string | null
           last_seen?: string | null
           license_plate?: string
           make?: string | null

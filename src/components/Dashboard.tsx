@@ -7,6 +7,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import CameraModal from "./CameraModal";
+import AlertsDisplay from "./AlertsDisplay";
 
 const Dashboard = () => {
   const [isModalOpen, setIsModalOpen] = React.useState(false);
@@ -122,76 +123,83 @@ const Dashboard = () => {
       </header>
 
       <main className="space-y-6">
-        {/* Camera Grid Section */}
-        <section className="fade-in">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-gray-800">Live Feeds</h2>
-            <Button 
-              onClick={() => setIsModalOpen(true)}
-              className="flex items-center gap-2"
-            >
-              <Camera size={18} />
-              Add Camera
-            </Button>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {isLoading ? (
-              <p className="col-span-full text-center text-gray-600">Loading cameras...</p>
-            ) : cameras && cameras.length > 0 ? (
-              cameras.map((camera) => (
-                <Card key={camera.id} className="hover-scale glass-card p-4">
-                  <div className="aspect-video bg-gray-800 rounded-lg mb-3">
-                    {camera.streaming_url ? (
-                      <video
-                        className="w-full h-full rounded-lg object-cover"
-                        src={camera.streaming_url}
-                        autoPlay
-                        muted
-                        playsInline
-                      />
-                    ) : (
-                      <div className="h-full flex items-center justify-center text-gray-400">
-                        <Video size={40} />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Camera Grid Section */}
+          <section className="lg:col-span-2 fade-in">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold text-gray-800">Live Feeds</h2>
+              <Button 
+                onClick={() => setIsModalOpen(true)}
+                className="flex items-center gap-2"
+              >
+                <Camera size={18} />
+                Add Camera
+              </Button>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {isLoading ? (
+                <p className="col-span-full text-center text-gray-600">Loading cameras...</p>
+              ) : cameras && cameras.length > 0 ? (
+                cameras.map((camera) => (
+                  <Card key={camera.id} className="hover-scale glass-card p-4">
+                    <div className="aspect-video bg-gray-800 rounded-lg mb-3">
+                      {camera.streaming_url ? (
+                        <video
+                          className="w-full h-full rounded-lg object-cover"
+                          src={camera.streaming_url}
+                          autoPlay
+                          muted
+                          playsInline
+                        />
+                      ) : (
+                        <div className="h-full flex items-center justify-center text-gray-400">
+                          <Video size={40} />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-sm font-medium">{camera.name}</span>
+                        <p className="text-xs text-gray-500">{camera.location}</p>
                       </div>
-                    )}
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-sm font-medium">{camera.name}</span>
-                      <p className="text-xs text-gray-500">{camera.location}</p>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => toggleRecording(camera.id, camera.is_recording)}
+                          className={camera.is_recording ? 'text-red-500 hover:text-red-600' : 'text-green-500 hover:text-green-600'}
+                        >
+                          {camera.is_recording ? (
+                            <StopCircle size={18} />
+                          ) : (
+                            <PlayCircle size={18} />
+                          )}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => toggleCameraStatus(camera.id, camera.status)}
+                          className={camera.status === 'active' ? 'text-green-500 hover:text-green-600' : 'text-red-500 hover:text-red-600'}
+                        >
+                          <Power size={18} />
+                        </Button>
+                        <div className={`w-2 h-2 rounded-full ${camera.status === 'active' ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => toggleRecording(camera.id, camera.is_recording)}
-                        className={camera.is_recording ? 'text-red-500 hover:text-red-600' : 'text-green-500 hover:text-green-600'}
-                      >
-                        {camera.is_recording ? (
-                          <StopCircle size={18} />
-                        ) : (
-                          <PlayCircle size={18} />
-                        )}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => toggleCameraStatus(camera.id, camera.status)}
-                        className={camera.status === 'active' ? 'text-green-500 hover:text-green-600' : 'text-red-500 hover:text-red-600'}
-                      >
-                        <Power size={18} />
-                      </Button>
-                      <div className={`w-2 h-2 rounded-full ${camera.status === 'active' ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                    </div>
-                  </div>
-                </Card>
-              ))
-            ) : (
-              <p className="col-span-full text-center text-gray-600">No cameras found</p>
-            )}
-          </div>
-        </section>
+                  </Card>
+                ))
+              ) : (
+                <p className="col-span-full text-center text-gray-600">No cameras found</p>
+              )}
+            </div>
+          </section>
+
+          {/* Alerts Section */}
+          <section className="fade-in">
+            <AlertsDisplay />
+          </section>
+        </div>
 
         {/* Stats Section */}
         <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 fade-in">
