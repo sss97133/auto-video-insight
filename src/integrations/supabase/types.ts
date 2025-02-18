@@ -229,6 +229,47 @@ export type Database = {
         }
         Relationships: []
       }
+      shared_videos: {
+        Row: {
+          created_at: string | null
+          customer_email: string
+          expires_at: string | null
+          id: string
+          share_token: string
+          status: string | null
+          video_recording_id: string
+          viewed_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          customer_email: string
+          expires_at?: string | null
+          id?: string
+          share_token: string
+          status?: string | null
+          video_recording_id: string
+          viewed_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          customer_email?: string
+          expires_at?: string | null
+          id?: string
+          share_token?: string
+          status?: string | null
+          video_recording_id?: string
+          viewed_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shared_videos_video_recording_id_fkey"
+            columns: ["video_recording_id"]
+            isOneToOne: false
+            referencedRelation: "video_recordings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vehicles: {
         Row: {
           confidence: number | null
