@@ -1,12 +1,39 @@
 
-import React from "react";
-import { Camera, Video, Cloud, Settings } from "lucide-react";
+import React, { useEffect } from "react";
+import { Camera, Video, Cloud, Settings, Power } from "lucide-react";
 import { Card } from "./ui/card";
-import { useQuery } from "@tanstack/react-query";
+import { Button } from "./ui/button";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import CameraModal from "./CameraModal";
 
 const Dashboard = () => {
+  const [isModalOpen, setIsModalOpen] = React.useState(false);
+  const queryClient = useQueryClient();
+
+  // Set up realtime subscription for camera updates
+  useEffect(() => {
+    const channel = supabase
+      .channel('schema-db-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'cameras'
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['cameras'] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
+
   // Fetch cameras data
   const { data: cameras, isLoading } = useQuery({
     queryKey: ['cameras'],
@@ -24,6 +51,24 @@ const Dashboard = () => {
     },
   });
 
+  // Toggle camera status
+  const toggleCameraStatus = async (id: string, currentStatus: string) => {
+    const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
+    try {
+      const { error } = await supabase
+        .from('cameras')
+        .update({ status: newStatus })
+        .eq('id', id);
+
+      if (error) throw error;
+
+      toast.success(`Camera ${newStatus === 'active' ? 'activated' : 'deactivated'}`);
+    } catch (error) {
+      toast.error('Failed to update camera status');
+      console.error('Error updating camera status:', error);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-6">
       <header className="mb-8">
@@ -38,10 +83,13 @@ const Dashboard = () => {
         <section className="fade-in">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-semibold text-gray-800">Live Feeds</h2>
-            <button className="flex items-center gap-2 px-4 py-2 bg-nuke-600 text-white rounded-lg hover:bg-nuke-700 transition-colors">
+            <Button 
+              onClick={() => setIsModalOpen(true)}
+              className="flex items-center gap-2"
+            >
               <Camera size={18} />
               Add Camera
-            </button>
+            </Button>
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -56,10 +104,20 @@ const Dashboard = () => {
                     </div>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">{camera.name}</span>
+                    <div>
+                      <span className="text-sm font-medium">{camera.name}</span>
+                      <p className="text-xs text-gray-500">{camera.location}</p>
+                    </div>
                     <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => toggleCameraStatus(camera.id, camera.status)}
+                        className={camera.status === 'active' ? 'text-green-500 hover:text-green-600' : 'text-red-500 hover:text-red-600'}
+                      >
+                        <Power size={18} />
+                      </Button>
                       <div className={`w-2 h-2 rounded-full ${camera.status === 'active' ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                      <span className="text-xs text-gray-500">{camera.status === 'active' ? 'Live' : 'Offline'}</span>
                     </div>
                   </div>
                 </Card>
@@ -121,9 +179,13 @@ const Dashboard = () => {
           </Card>
         </section>
       </main>
+
+      <CameraModal 
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+      />
     </div>
   );
 };
 
 export default Dashboard;
-
