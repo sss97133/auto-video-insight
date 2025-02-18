@@ -30,13 +30,18 @@ serve(async (req) => {
     const imageResponse = await fetch(image_url)
     const imageBuffer = await imageResponse.arrayBuffer()
 
-    // Initialize AWS Rekognition client
+    // Initialize AWS Rekognition client with explicit region and credentials
     const rekognition = new RekognitionClient({
       region: "us-east-1",
       credentials: {
-        accessKeyId: Deno.env.get('AWS_ACCESS_KEY_ID') ?? '',
-        secretAccessKey: Deno.env.get('AWS_SECRET_ACCESS_KEY') ?? '',
+        accessKeyId: Deno.env.get('AWS_ACCESS_KEY_ID') || '',
+        secretAccessKey: Deno.env.get('AWS_SECRET_ACCESS_KEY') || '',
       },
+    })
+
+    console.log('AWS Credentials loaded:', {
+      hasAccessKey: !!Deno.env.get('AWS_ACCESS_KEY_ID'),
+      hasSecretKey: !!Deno.env.get('AWS_SECRET_ACCESS_KEY')
     })
 
     // Detect text for license plate
