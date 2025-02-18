@@ -8,6 +8,7 @@ import AlertsDisplay from "./AlertsDisplay";
 import CameraGrid from "./dashboard/CameraGrid";
 import StatsSection from "./dashboard/StatsSection";
 import AnalyticsDashboard from "./analytics/AnalyticsDashboard";
+import VehicleList from "./vehicles/VehicleList";
 
 const Dashboard = () => {
   const [isModalOpen, setIsModalOpen] = React.useState(false);
@@ -76,6 +77,8 @@ const Dashboard = () => {
             <AlertsDisplay />
           </section>
         </div>
+
+        <VehicleList />
 
         <AnalyticsDashboard />
       </main>
