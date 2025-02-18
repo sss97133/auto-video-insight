@@ -13,7 +13,10 @@ export type Database = {
         Row: {
           alert_type: string
           camera_id: string | null
+          confidence: number | null
           created_at: string
+          event_metadata: Json | null
+          event_type: string | null
           id: string
           message: string
           metadata: Json | null
@@ -24,7 +27,10 @@ export type Database = {
         Insert: {
           alert_type: string
           camera_id?: string | null
+          confidence?: number | null
           created_at?: string
+          event_metadata?: Json | null
+          event_type?: string | null
           id?: string
           message: string
           metadata?: Json | null
@@ -35,7 +41,10 @@ export type Database = {
         Update: {
           alert_type?: string
           camera_id?: string | null
+          confidence?: number | null
           created_at?: string
+          event_metadata?: Json | null
+          event_type?: string | null
           id?: string
           message?: string
           metadata?: Json | null
@@ -229,7 +238,14 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      alert_event_type:
+        | "unauthorized_access"
+        | "unsafe_movement"
+        | "equipment_malfunction"
+        | "suspicious_vehicle"
+        | "speed_violation"
+        | "parking_violation"
+        | "maintenance_needed"
     }
     CompositeTypes: {
       [_ in never]: never
