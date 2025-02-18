@@ -56,9 +56,11 @@ export type Database = {
           configuration: Json | null
           created_at: string
           id: string
+          is_recording: boolean | null
           location: string
           name: string
           status: string
+          streaming_url: string | null
           type: string
           updated_at: string
         }
@@ -66,9 +68,11 @@ export type Database = {
           configuration?: Json | null
           created_at?: string
           id?: string
+          is_recording?: boolean | null
           location: string
           name: string
           status?: string
+          streaming_url?: string | null
           type: string
           updated_at?: string
         }
@@ -76,9 +80,11 @@ export type Database = {
           configuration?: Json | null
           created_at?: string
           id?: string
+          is_recording?: boolean | null
           location?: string
           name?: string
           status?: string
+          streaming_url?: string | null
           type?: string
           updated_at?: string
         }
@@ -122,6 +128,7 @@ export type Database = {
           id: string
           metadata: Json | null
           start_time: string
+          status: string | null
           storage_path: string
         }
         Insert: {
@@ -131,6 +138,7 @@ export type Database = {
           id?: string
           metadata?: Json | null
           start_time: string
+          status?: string | null
           storage_path: string
         }
         Update: {
@@ -140,6 +148,7 @@ export type Database = {
           id?: string
           metadata?: Json | null
           start_time?: string
+          status?: string | null
           storage_path?: string
         }
         Relationships: [

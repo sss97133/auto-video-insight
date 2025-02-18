@@ -1,6 +1,6 @@
 
 import React, { useEffect } from "react";
-import { Camera, Video, Cloud, Settings, Power } from "lucide-react";
+import { Camera, Video, Cloud, Settings, Power, PlayCircle, StopCircle } from "lucide-react";
 import { Card } from "./ui/card";
 import { Button } from "./ui/button";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -69,6 +69,49 @@ const Dashboard = () => {
     }
   };
 
+  // Toggle recording
+  const toggleRecording = async (id: string, isCurrentlyRecording: boolean) => {
+    try {
+      const { error: updateError } = await supabase
+        .from('cameras')
+        .update({ is_recording: !isCurrentlyRecording })
+        .eq('id', id);
+
+      if (updateError) throw updateError;
+
+      if (!isCurrentlyRecording) {
+        // Start new recording
+        const { error: recordingError } = await supabase
+          .from('video_recordings')
+          .insert({
+            camera_id: id,
+            start_time: new Date().toISOString(),
+            storage_path: `recordings/${id}/${new Date().getTime()}.mp4`,
+            status: 'recording'
+          });
+
+        if (recordingError) throw recordingError;
+        toast.success('Recording started');
+      } else {
+        // Update existing recording
+        const { error: stopError } = await supabase
+          .from('video_recordings')
+          .update({
+            end_time: new Date().toISOString(),
+            status: 'completed'
+          })
+          .eq('camera_id', id)
+          .eq('status', 'recording');
+
+        if (stopError) throw stopError;
+        toast.success('Recording stopped');
+      }
+    } catch (error) {
+      toast.error('Failed to toggle recording');
+      console.error('Error toggling recording:', error);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-6">
       <header className="mb-8">
@@ -99,9 +142,19 @@ const Dashboard = () => {
               cameras.map((camera) => (
                 <Card key={camera.id} className="hover-scale glass-card p-4">
                   <div className="aspect-video bg-gray-800 rounded-lg mb-3">
-                    <div className="h-full flex items-center justify-center text-gray-400">
-                      <Video size={40} />
-                    </div>
+                    {camera.streaming_url ? (
+                      <video
+                        className="w-full h-full rounded-lg object-cover"
+                        src={camera.streaming_url}
+                        autoPlay
+                        muted
+                        playsInline
+                      />
+                    ) : (
+                      <div className="h-full flex items-center justify-center text-gray-400">
+                        <Video size={40} />
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center justify-between">
                     <div>
@@ -109,6 +162,18 @@ const Dashboard = () => {
                       <p className="text-xs text-gray-500">{camera.location}</p>
                     </div>
                     <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => toggleRecording(camera.id, camera.is_recording)}
+                        className={camera.is_recording ? 'text-red-500 hover:text-red-600' : 'text-green-500 hover:text-green-600'}
+                      >
+                        {camera.is_recording ? (
+                          <StopCircle size={18} />
+                        ) : (
+                          <PlayCircle size={18} />
+                        )}
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -160,8 +225,8 @@ const Dashboard = () => {
                 <Settings className="text-purple-500" size={24} />
               </div>
               <div>
-                <p className="text-sm text-gray-600">Processing</p>
-                <h3 className="text-2xl font-bold">3</h3>
+                <p className="text-sm text-gray-600">Recording</p>
+                <h3 className="text-2xl font-bold">{cameras?.filter(c => c.is_recording).length || 0}</h3>
               </div>
             </div>
           </Card>
