@@ -65,9 +65,9 @@ const VehicleList = () => {
     }
   };
 
-  const getQualityBadgeVariant = (score: number) => {
-    if (score >= 0.8) return "success";
-    if (score >= 0.6) return "warning";
+  const getQualityBadgeVariant = (score: number): "default" | "secondary" | "destructive" => {
+    if (score >= 0.8) return "default";
+    if (score >= 0.6) return "secondary";
     return "destructive";
   };
 
