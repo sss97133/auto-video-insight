@@ -7,6 +7,7 @@ import CameraModal from "./CameraModal";
 import AlertsDisplay from "./AlertsDisplay";
 import CameraGrid from "./dashboard/CameraGrid";
 import StatsSection from "./dashboard/StatsSection";
+import AnalyticsDashboard from "./analytics/AnalyticsDashboard";
 
 const Dashboard = () => {
   const [isModalOpen, setIsModalOpen] = React.useState(false);
@@ -61,18 +62,22 @@ const Dashboard = () => {
       </header>
 
       <main className="space-y-6">
+        <StatsSection cameras={cameras} />
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <CameraGrid 
-            cameras={cameras}
-            isLoading={isLoading}
-            onAddCamera={() => setIsModalOpen(true)}
-          />
+          <div className="lg:col-span-2">
+            <CameraGrid 
+              cameras={cameras}
+              isLoading={isLoading}
+              onAddCamera={() => setIsModalOpen(true)}
+            />
+          </div>
           <section className="fade-in">
             <AlertsDisplay />
           </section>
         </div>
 
-        <StatsSection cameras={cameras} />
+        <AnalyticsDashboard />
       </main>
 
       <CameraModal 
@@ -84,4 +89,3 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
-
