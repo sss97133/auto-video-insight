@@ -2,8 +2,28 @@
 import React from "react";
 import { Camera, Video, Cloud, Settings } from "lucide-react";
 import { Card } from "./ui/card";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 const Dashboard = () => {
+  // Fetch cameras data
+  const { data: cameras, isLoading } = useQuery({
+    queryKey: ['cameras'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('cameras')
+        .select('*');
+      
+      if (error) {
+        toast.error('Failed to load cameras');
+        throw error;
+      }
+      
+      return data;
+    },
+  });
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-6">
       <header className="mb-8">
@@ -25,22 +45,28 @@ const Dashboard = () => {
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {[1, 2, 3].map((camera) => (
-              <Card key={camera} className="hover-scale glass-card p-4">
-                <div className="aspect-video bg-gray-800 rounded-lg mb-3">
-                  <div className="h-full flex items-center justify-center text-gray-400">
-                    <Video size={40} />
+            {isLoading ? (
+              <p className="col-span-full text-center text-gray-600">Loading cameras...</p>
+            ) : cameras && cameras.length > 0 ? (
+              cameras.map((camera) => (
+                <Card key={camera.id} className="hover-scale glass-card p-4">
+                  <div className="aspect-video bg-gray-800 rounded-lg mb-3">
+                    <div className="h-full flex items-center justify-center text-gray-400">
+                      <Video size={40} />
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Camera {camera}</span>
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                    <span className="text-xs text-gray-500">Live</span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">{camera.name}</span>
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full ${camera.status === 'active' ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                      <span className="text-xs text-gray-500">{camera.status === 'active' ? 'Live' : 'Offline'}</span>
+                    </div>
                   </div>
-                </div>
-              </Card>
-            ))}
+                </Card>
+              ))
+            ) : (
+              <p className="col-span-full text-center text-gray-600">No cameras found</p>
+            )}
           </div>
         </section>
 
@@ -53,7 +79,7 @@ const Dashboard = () => {
               </div>
               <div>
                 <p className="text-sm text-gray-600">Active Streams</p>
-                <h3 className="text-2xl font-bold">12</h3>
+                <h3 className="text-2xl font-bold">{cameras?.filter(c => c.status === 'active').length || 0}</h3>
               </div>
             </div>
           </Card>
@@ -89,7 +115,7 @@ const Dashboard = () => {
               </div>
               <div>
                 <p className="text-sm text-gray-600">Total Cameras</p>
-                <h3 className="text-2xl font-bold">24</h3>
+                <h3 className="text-2xl font-bold">{cameras?.length || 0}</h3>
               </div>
             </div>
           </Card>
@@ -100,3 +126,4 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
+

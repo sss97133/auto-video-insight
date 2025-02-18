@@ -9,7 +9,149 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      analytics: {
+        Row: {
+          camera_id: string | null
+          event_data: Json | null
+          event_type: string
+          id: string
+          timestamp: string
+          vehicle_id: string | null
+        }
+        Insert: {
+          camera_id?: string | null
+          event_data?: Json | null
+          event_type: string
+          id?: string
+          timestamp?: string
+          vehicle_id?: string | null
+        }
+        Update: {
+          camera_id?: string | null
+          event_data?: Json | null
+          event_type?: string
+          id?: string
+          timestamp?: string
+          vehicle_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "analytics_camera_id_fkey"
+            columns: ["camera_id"]
+            isOneToOne: false
+            referencedRelation: "cameras"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "analytics_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cameras: {
+        Row: {
+          configuration: Json | null
+          created_at: string
+          id: string
+          location: string
+          name: string
+          status: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          configuration?: Json | null
+          created_at?: string
+          id?: string
+          location: string
+          name: string
+          status?: string
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          configuration?: Json | null
+          created_at?: string
+          id?: string
+          location?: string
+          name?: string
+          status?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      vehicles: {
+        Row: {
+          created_at: string
+          id: string
+          last_seen: string | null
+          license_plate: string
+          make: string | null
+          model: string | null
+          year: number | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_seen?: string | null
+          license_plate: string
+          make?: string | null
+          model?: string | null
+          year?: number | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_seen?: string | null
+          license_plate?: string
+          make?: string | null
+          model?: string | null
+          year?: number | null
+        }
+        Relationships: []
+      }
+      video_recordings: {
+        Row: {
+          camera_id: string | null
+          created_at: string
+          end_time: string | null
+          id: string
+          metadata: Json | null
+          start_time: string
+          storage_path: string
+        }
+        Insert: {
+          camera_id?: string | null
+          created_at?: string
+          end_time?: string | null
+          id?: string
+          metadata?: Json | null
+          start_time: string
+          storage_path: string
+        }
+        Update: {
+          camera_id?: string | null
+          created_at?: string
+          end_time?: string | null
+          id?: string
+          metadata?: Json | null
+          start_time?: string
+          storage_path?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "video_recordings_camera_id_fkey"
+            columns: ["camera_id"]
+            isOneToOne: false
+            referencedRelation: "cameras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
