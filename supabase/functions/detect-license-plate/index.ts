@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 import { RekognitionClient, DetectTextCommand, DetectLabelsCommand } from "npm:@aws-sdk/client-rekognition"
@@ -20,6 +19,29 @@ serve(async (req) => {
       throw new Error('No image URL provided')
     }
 
+    // Log environment variables availability (safely)
+    console.log('Environment check:', {
+      hasAwsAccessKey: !!Deno.env.get('AWS_ACCESS_KEY_ID'),
+      hasAwsSecretKey: !!Deno.env.get('AWS_SECRET_ACCESS_KEY'),
+      awsRegion: 'us-east-1'
+    })
+
+    // Initialize AWS Rekognition client
+    const awsConfig = {
+      region: "us-east-1",
+      credentials: {
+        accessKeyId: Deno.env.get('AWS_ACCESS_KEY_ID') || '',
+        secretAccessKey: Deno.env.get('AWS_SECRET_ACCESS_KEY') || ''
+      }
+    }
+
+    console.log('Initializing AWS Rekognition client with config:', {
+      region: awsConfig.region,
+      hasCredentials: !!(awsConfig.credentials.accessKeyId && awsConfig.credentials.secretAccessKey)
+    })
+
+    const rekognition = new RekognitionClient(awsConfig)
+
     // Initialize Supabase client
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -27,32 +49,29 @@ serve(async (req) => {
     )
 
     // Download image from Supabase Storage
+    console.log('Fetching image from URL:', image_url)
     const imageResponse = await fetch(image_url)
+    if (!imageResponse.ok) {
+      throw new Error(`Failed to fetch image: ${imageResponse.statusText}`)
+    }
     const imageBuffer = await imageResponse.arrayBuffer()
 
-    // Initialize AWS Rekognition client with explicit region and credentials
-    const rekognition = new RekognitionClient({
-      region: "us-east-1",
-      credentials: {
-        accessKeyId: Deno.env.get('AWS_ACCESS_KEY_ID') || '',
-        secretAccessKey: Deno.env.get('AWS_SECRET_ACCESS_KEY') || '',
-      },
-    })
-
-    console.log('AWS Credentials loaded:', {
-      hasAccessKey: !!Deno.env.get('AWS_ACCESS_KEY_ID'),
-      hasSecretKey: !!Deno.env.get('AWS_SECRET_ACCESS_KEY')
-    })
-
     // Detect text for license plate
+    console.log('Detecting text in image...')
     const detectTextCommand = new DetectTextCommand({
       Image: {
         Bytes: new Uint8Array(imageBuffer)
       }
     })
 
-    const textDetectionResult = await rekognition.send(detectTextCommand)
-    
+    try {
+      const textDetectionResult = await rekognition.send(detectTextCommand)
+      console.log('Text detection completed successfully')
+    } catch (error) {
+      console.error('AWS Rekognition text detection error:', error)
+      throw new Error(`AWS Rekognition error: ${error.message}`)
+    }
+
     // Detect labels for vehicle attributes
     const detectLabelsCommand = new DetectLabelsCommand({
       Image: {
@@ -232,7 +251,12 @@ serve(async (req) => {
     )
 
   } catch (error) {
-    console.error('Error:', error)
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    })
+    
     return new Response(
       JSON.stringify({
         success: false,
