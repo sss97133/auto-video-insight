@@ -35,6 +35,7 @@ const VehicleImageUpload = () => {
         .upload(fileName, file);
 
       if (uploadError) {
+        console.error('Upload error:', uploadError);
         throw new Error(`Upload failed: ${uploadError.message}`);
       }
 
@@ -46,28 +47,49 @@ const VehicleImageUpload = () => {
         .getPublicUrl(uploadData.path);
 
       if (!urlData.publicUrl) {
+        console.error('Failed to get public URL');
         throw new Error('Failed to get public URL for uploaded image');
       }
 
+      console.log('Image public URL:', urlData.publicUrl);
       console.log('Starting license plate detection...');
 
-      // Process image with edge function, sending only the URL as a string
-      const { data, error: detectionError } = await supabase.functions
+      // Process image with edge function
+      const { data: detectionData, error: detectionError } = await supabase.functions
         .invoke('detect-license-plate', {
-          body: JSON.stringify({ image_url: urlData.publicUrl })
+          body: { image_url: urlData.publicUrl }
         });
 
       if (detectionError) {
+        console.error('Detection error:', detectionError);
         throw new Error(`Detection failed: ${detectionError.message}`);
       }
 
-      if (!data) {
+      if (!detectionData) {
+        console.error('No detection data received');
         throw new Error('No data received from detection service');
       }
 
-      console.log('Detection completed successfully:', data);
+      console.log('Detection completed successfully:', detectionData);
+      
+      // Insert vehicle data into database
+      const { error: insertError } = await supabase
+        .from('vehicles')
+        .insert([{
+          license_plate: detectionData.license_plate,
+          confidence: detectionData.confidence,
+          vehicle_type: detectionData.vehicle_type,
+          image_url: urlData.publicUrl,
+          last_seen: new Date().toISOString()
+        }]);
+
+      if (insertError) {
+        console.error('Database insert error:', insertError);
+        throw new Error(`Failed to save vehicle data: ${insertError.message}`);
+      }
+
       toast.dismiss(loadingToast);
-      toast.success('Vehicle processed successfully');
+      toast.success('Vehicle processed and saved successfully');
 
     } catch (error) {
       console.error('Process failed:', error);
