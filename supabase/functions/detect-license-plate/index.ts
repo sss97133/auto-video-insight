@@ -4,6 +4,7 @@ import { processImage } from "./handlers/imageProcessor.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 serve(async (req) => {
+  // Add detailed request logging
   console.log('Request received:', {
     method: req.method,
     url: req.url,
@@ -18,8 +19,10 @@ serve(async (req) => {
 
   try {
     // Log request details
-    console.log('Processing request...');
-    const { image_url } = await req.json();
+    const body = await req.json();
+    console.log('Request body:', body);
+    
+    const { image_url } = body;
     
     if (!image_url) {
       console.error('No image URL provided');
@@ -29,6 +32,7 @@ serve(async (req) => {
     console.log('Image URL:', image_url);
 
     // Process the image
+    console.log('Starting image processing...');
     const result = await processImage(image_url);
     console.log('Processing result:', result);
 
@@ -40,10 +44,18 @@ serve(async (req) => {
       status: 200,
     });
   } catch (error) {
-    console.error('Edge function error:', error);
+    // Enhanced error logging
+    console.error('Edge function error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+      cause: error.cause,
+    });
+    
     return new Response(JSON.stringify({
       error: error.message || 'Internal server error',
       stack: error.stack,
+      details: error.cause,
     }), {
       headers: {
         ...corsHeaders,
