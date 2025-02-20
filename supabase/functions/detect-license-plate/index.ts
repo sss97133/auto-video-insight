@@ -23,6 +23,7 @@ serve(async (req) => {
     try {
       body = await req.json();
     } catch (e) {
+      console.error('Failed to parse request body:', e);
       return new Response(
         JSON.stringify({ error: 'Invalid JSON body' }),
         { 
@@ -34,6 +35,7 @@ serve(async (req) => {
 
     const { image_url } = body;
     if (!image_url) {
+      console.error('No image URL provided in request body');
       return new Response(
         JSON.stringify({ error: 'No image URL provided' }),
         { 
@@ -44,14 +46,32 @@ serve(async (req) => {
     }
     console.log('Processing image URL:', image_url);
 
+    // Test AWS credentials
+    const accessKeyId = Deno.env.get('AWS_ACCESS_KEY_ID');
+    const secretAccessKey = Deno.env.get('AWS_SECRET_ACCESS_KEY');
+    if (!accessKeyId || !secretAccessKey) {
+      console.error('Missing AWS credentials');
+      return new Response(
+        JSON.stringify({ error: 'AWS credentials not configured' }),
+        { 
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
+    console.log('AWS credentials found');
+
     // Download image with error handling
     let imageResponse;
     try {
+      console.log('Attempting to download image...');
       imageResponse = await fetch(image_url);
       if (!imageResponse.ok) {
         throw new Error(`Failed to download image: ${imageResponse.status} ${imageResponse.statusText}`);
       }
+      console.log('Image downloaded successfully');
     } catch (e) {
+      console.error('Image download failed:', e);
       return new Response(
         JSON.stringify({ error: `Failed to fetch image: ${e.message}` }),
         { 
@@ -63,22 +83,10 @@ serve(async (req) => {
 
     const imageBuffer = await imageResponse.arrayBuffer();
     const imageBytes = new Uint8Array(imageBuffer);
-    console.log('Image downloaded successfully, size:', imageBytes.length);
-
-    // Validate AWS credentials
-    const accessKeyId = Deno.env.get('AWS_ACCESS_KEY_ID');
-    const secretAccessKey = Deno.env.get('AWS_SECRET_ACCESS_KEY');
-    if (!accessKeyId || !secretAccessKey) {
-      return new Response(
-        JSON.stringify({ error: 'AWS credentials not configured' }),
-        { 
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      );
-    }
+    console.log('Image converted to bytes, size:', imageBytes.length);
 
     // Initialize AWS client
+    console.log('Initializing AWS Rekognition client...');
     const rekognition = new RekognitionClient({
       credentials: {
         accessKeyId,
@@ -95,6 +103,7 @@ serve(async (req) => {
         Image: { Bytes: imageBytes }
       });
       textResponse = await rekognition.send(textCommand);
+      console.log('Text detection successful:', JSON.stringify(textResponse.TextDetections, null, 2));
     } catch (e) {
       console.error('Text detection failed:', e);
       return new Response(
@@ -105,9 +114,9 @@ serve(async (req) => {
         }
       );
     }
-    console.log('Text detection response:', JSON.stringify(textResponse, null, 2));
 
     if (!textResponse.TextDetections || textResponse.TextDetections.length === 0) {
+      console.log('No text detected in image');
       return new Response(
         JSON.stringify({ error: 'No text detected in image' }),
         { 
@@ -126,6 +135,7 @@ serve(async (req) => {
         MinConfidence: 80
       });
       labelsResponse = await rekognition.send(labelsCommand);
+      console.log('Label detection successful:', JSON.stringify(labelsResponse.Labels, null, 2));
     } catch (e) {
       console.error('Label detection failed:', e);
       return new Response(
@@ -136,7 +146,6 @@ serve(async (req) => {
         }
       );
     }
-    console.log('Label detection response:', JSON.stringify(labelsResponse, null, 2));
 
     // Process results
     const licensePlate = textResponse.TextDetections
