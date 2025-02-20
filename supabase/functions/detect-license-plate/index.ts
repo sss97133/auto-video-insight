@@ -8,11 +8,7 @@ import {
 } from "https://deno.land/x/aws_sdk@v3.32.0-1/client-rekognition/mod.ts";
 
 serve(async (req) => {
-  console.log('Function started:', {
-    method: req.method,
-    url: req.url,
-    headers: Object.fromEntries(req.headers.entries())
-  });
+  console.log('Function started with method:', req.method);
 
   // Handle CORS
   if (req.method === 'OPTIONS') {
@@ -22,21 +18,24 @@ serve(async (req) => {
   try {
     // Parse and validate request
     if (!req.body) {
+      console.error('Empty request body');
       throw new Error('Request body is empty');
     }
 
     const body = await req.json();
-    console.log('Request body:', body);
+    console.log('Request body received:', body);
     
     const { image_url } = body;
     if (!image_url) {
+      console.error('No image URL in request body');
       throw new Error('No image URL provided');
     }
 
     // Download image from URL
-    console.log('Downloading image from URL:', image_url);
+    console.log('Attempting to download image from:', image_url);
     const imageResponse = await fetch(image_url);
     if (!imageResponse.ok) {
+      console.error('Image download failed:', imageResponse.status, imageResponse.statusText);
       throw new Error(`Failed to download image: ${imageResponse.statusText}`);
     }
 
@@ -44,42 +43,35 @@ serve(async (req) => {
     console.log('Image downloaded successfully, size:', imageBuffer.byteLength);
 
     // Initialize AWS Rekognition client
-    console.log('Initializing Rekognition client...');
+    console.log('Checking AWS credentials...');
     const accessKeyId = Deno.env.get("AWS_ACCESS_KEY_ID");
     const secretAccessKey = Deno.env.get("AWS_SECRET_ACCESS_KEY");
     
     if (!accessKeyId || !secretAccessKey) {
-      console.error('AWS credentials not found in environment');
+      console.error('AWS credentials missing from environment');
       throw new Error('AWS credentials not configured');
     }
 
-    // Log AWS configuration (without exposing secrets)
-    console.log('AWS Configuration:', {
+    console.log('AWS credentials found, initializing Rekognition client...');
+    const client = new RekognitionClient({
       region: "us-east-2",
-      accessKeyIdPresent: !!accessKeyId,
-      secretAccessKeyPresent: !!secretAccessKey
+      credentials: {
+        accessKeyId,
+        secretAccessKey,
+      },
     });
+    console.log('Rekognition client initialized');
 
     try {
-      console.log('Creating Rekognition client with IAM user nulab...');
-      const client = new RekognitionClient({
-        region: "us-east-2",
-        credentials: {
-          accessKeyId,
-          secretAccessKey,
-        },
-      });
-      console.log('Rekognition client initialized successfully');
-
       // Detect text in image
-      console.log('Creating DetectText command with image size:', imageBuffer.byteLength);
+      console.log('Creating DetectText command...');
       const detectTextCommand = new DetectTextCommand({
         Image: {
           Bytes: new Uint8Array(imageBuffer),
         },
       });
 
-      console.log('Sending DetectText request to Rekognition...');
+      console.log('Executing DetectText command...');
       const textResponse = await client.send(detectTextCommand);
       console.log('Text detection response:', JSON.stringify(textResponse, null, 2));
 
@@ -93,9 +85,9 @@ serve(async (req) => {
         MinConfidence: 70,
       });
 
-      console.log('Sending DetectLabels request to Rekognition...');
+      console.log('Executing DetectLabels command...');
       const labelsResponse = await client.send(detectLabelsCommand);
-      console.log('Label detection response:', JSON.stringify(labelsResponse, null, 2));
+      console.log('Labels detection response:', JSON.stringify(labelsResponse, null, 2));
 
       // Process text results
       const detectedText = textResponse.TextDetections || [];
@@ -106,6 +98,7 @@ serve(async (req) => {
       );
 
       if (!licensePlate) {
+        console.log('No valid license plate pattern found in detected text');
         throw new Error('No valid license plate detected in image');
       }
 
@@ -150,7 +143,7 @@ serve(async (req) => {
         name: rekognitionError.name,
         message: rekognitionError.message,
         stack: rekognitionError.stack,
-        cause: rekognitionError.cause
+        cause: rekognitionError?.cause
       });
       throw rekognitionError;
     }
@@ -160,7 +153,7 @@ serve(async (req) => {
       message: error.message,
       stack: error.stack,
       name: error.name,
-      cause: error.cause
+      cause: error?.cause
     });
     
     return new Response(JSON.stringify({
