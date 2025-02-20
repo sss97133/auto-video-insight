@@ -17,31 +17,35 @@ const VehicleImageUpload = () => {
 
     try {
       // Upload image
+      const fileName = `${Date.now()}-${file.name.replace(/[^\x00-\x7F]/g, '')}`;
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('vehicle-images')
-        .upload(`${Date.now()}-${file.name}`, file);
+        .upload(fileName, file);
 
       if (uploadError) {
-        throw new Error('Failed to upload image to storage');
+        throw new Error(`Failed to upload image: ${uploadError.message}`);
       }
+
+      console.log('Image uploaded successfully');
 
       // Get public URL
       const { data: { publicUrl } } = supabase.storage
         .from('vehicle-images')
         .getPublicUrl(uploadData.path);
 
+      console.log('Starting license plate detection...');
+
       // Process image with edge function
       const { data: detectionData, error: detectionError } = await supabase.functions
         .invoke('detect-license-plate', {
-          body: {
-            image_url: publicUrl,
-            camera_id: null // Manual upload
-          }
+          body: { image_url: publicUrl }
         });
 
       if (detectionError) {
-        throw new Error('Failed to process image');
+        throw new Error(`Failed to process image: ${detectionError.message}`);
       }
+
+      console.log('Detection completed:', detectionData);
 
       toast.dismiss(loadingToast);
       toast.success('Vehicle processed successfully');
@@ -75,4 +79,3 @@ const VehicleImageUpload = () => {
 };
 
 export default VehicleImageUpload;
-
