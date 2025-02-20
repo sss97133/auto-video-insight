@@ -2,9 +2,10 @@
 import React from "react";
 import { Card } from "../ui/card";
 import { Button } from "../ui/button";
-import { Video, Power, PlayCircle, StopCircle, Camera } from "lucide-react";
+import { Video, Power, PlayCircle, StopCircle, Camera, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { format } from "date-fns";
 
 interface CameraGridProps {
   cameras: any[] | undefined;
@@ -32,6 +33,7 @@ const CameraGrid = ({ cameras, isLoading, onAddCamera }: CameraGridProps) => {
 
   const toggleRecording = async (id: string, isCurrentlyRecording: boolean) => {
     try {
+      // Update camera recording status
       const { error: updateError } = await supabase
         .from('cameras')
         .update({ is_recording: !isCurrentlyRecording })
@@ -40,18 +42,21 @@ const CameraGrid = ({ cameras, isLoading, onAddCamera }: CameraGridProps) => {
       if (updateError) throw updateError;
 
       if (!isCurrentlyRecording) {
+        // Start new recording
+        const storagePath = `recordings/${id}/${new Date().getTime()}.mp4`;
         const { error: recordingError } = await supabase
           .from('video_recordings')
           .insert({
             camera_id: id,
             start_time: new Date().toISOString(),
-            storage_path: `recordings/${id}/${new Date().getTime()}.mp4`,
+            storage_path: storagePath,
             status: 'recording'
           });
 
         if (recordingError) throw recordingError;
         toast.success('Recording started');
       } else {
+        // Stop current recording
         const { error: stopError } = await supabase
           .from('video_recordings')
           .update({
@@ -67,6 +72,56 @@ const CameraGrid = ({ cameras, isLoading, onAddCamera }: CameraGridProps) => {
     } catch (error) {
       toast.error('Failed to toggle recording');
       console.error('Error toggling recording:', error);
+    }
+  };
+
+  const shareRecording = async (cameraId: string) => {
+    try {
+      // Get the latest completed recording for this camera
+      const { data: recording, error: fetchError } = await supabase
+        .from('video_recordings')
+        .select('*')
+        .eq('camera_id', cameraId)
+        .eq('status', 'completed')
+        .order('end_time', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      if (!recording) {
+        toast.error('No completed recordings found for this camera');
+        return;
+      }
+
+      // Generate a unique share token
+      const shareToken = crypto.randomUUID();
+      const expiryDate = new Date();
+      expiryDate.setDate(expiryDate.getDate() + 7); // Set expiry to 7 days from now
+
+      // Create share record
+      const { error: shareError } = await supabase
+        .from('shared_videos')
+        .insert({
+          video_recording_id: recording.id,
+          share_token: shareToken,
+          expires_at: expiryDate.toISOString(),
+          status: 'active',
+          customer_email: 'pending' // This would typically be set when sharing with a specific customer
+        });
+
+      if (shareError) throw shareError;
+
+      // Generate shareable link
+      const shareableLink = `${window.location.origin}/shared/${shareToken}`;
+      
+      // Copy link to clipboard
+      await navigator.clipboard.writeText(shareableLink);
+      toast.success('Share link copied to clipboard! The link will expire in 7 days.');
+
+    } catch (error) {
+      toast.error('Failed to share recording');
+      console.error('Error sharing recording:', error);
     }
   };
 
@@ -121,6 +176,14 @@ const CameraGrid = ({ cameras, isLoading, onAddCamera }: CameraGridProps) => {
                     ) : (
                       <PlayCircle size={18} />
                     )}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => shareRecording(camera.id)}
+                    className="text-blue-500 hover:text-blue-600"
+                  >
+                    <Share2 size={18} />
                   </Button>
                   <Button
                     variant="ghost"
