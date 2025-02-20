@@ -5,13 +5,15 @@ export class RekognitionService {
   private client: RekognitionClient;
 
   constructor(accessKeyId: string, secretAccessKey: string) {
+    console.log('Initializing Rekognition client...');
     this.client = new RekognitionClient({
+      region: "us-east-1",
       credentials: {
         accessKeyId,
-        secretAccessKey,
-      },
-      region: "us-east-1"
+        secretAccessKey
+      }
     });
+    console.log('Rekognition client initialized successfully');
   }
 
   async detectText(imageBytes: Uint8Array) {
@@ -19,7 +21,15 @@ export class RekognitionService {
     const command = new DetectTextCommand({
       Image: { Bytes: imageBytes }
     });
-    return await this.client.send(command);
+
+    try {
+      const result = await this.client.send(command);
+      console.log('Text detection completed successfully');
+      return result;
+    } catch (error) {
+      console.error('Error in text detection:', error);
+      throw error;
+    }
   }
 
   async detectLabels(imageBytes: Uint8Array) {
@@ -28,7 +38,14 @@ export class RekognitionService {
       Image: { Bytes: imageBytes },
       MinConfidence: 80
     });
-    return await this.client.send(command);
+
+    try {
+      const result = await this.client.send(command);
+      console.log('Label detection completed successfully');
+      return result;
+    } catch (error) {
+      console.error('Error in label detection:', error);
+      throw error;
+    }
   }
 }
-
