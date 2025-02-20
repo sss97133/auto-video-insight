@@ -6,11 +6,19 @@ export class RekognitionService {
 
   constructor() {
     console.log('Initializing Rekognition client...');
+    const accessKeyId = Deno.env.get("AWS_ACCESS_KEY_ID");
+    const secretAccessKey = Deno.env.get("AWS_SECRET_ACCESS_KEY");
+    
+    if (!accessKeyId || !secretAccessKey) {
+      console.error('AWS credentials not found');
+      throw new Error('AWS credentials not configured');
+    }
+    
     this.client = new RekognitionClient({
       region: "us-east-1",
       credentials: {
-        accessKeyId: Deno.env.get("AWS_ACCESS_KEY_ID") || "",
-        secretAccessKey: Deno.env.get("AWS_SECRET_ACCESS_KEY") || "",
+        accessKeyId,
+        secretAccessKey,
       },
     });
     console.log('Rekognition client initialized');
@@ -52,4 +60,3 @@ export class RekognitionService {
     }
   }
 }
-

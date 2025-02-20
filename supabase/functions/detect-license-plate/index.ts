@@ -4,8 +4,15 @@ import { processImage } from "./handlers/imageProcessor.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 serve(async (req) => {
+  console.log('Request received:', {
+    method: req.method,
+    url: req.url,
+    headers: Object.fromEntries(req.headers.entries())
+  });
+
   // Handle CORS
   if (req.method === 'OPTIONS') {
+    console.log('Handling CORS preflight request');
     return new Response('ok', { headers: corsHeaders });
   }
 
@@ -46,4 +53,3 @@ serve(async (req) => {
     });
   }
 });
-

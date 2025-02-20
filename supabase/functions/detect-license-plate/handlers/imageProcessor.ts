@@ -9,6 +9,7 @@ export async function processImage(imageUrl: string) {
     console.log('Rekognition service initialized');
     
     // Download image and convert to base64
+    console.log('Downloading image from:', imageUrl);
     const response = await fetch(imageUrl);
     if (!response.ok) {
       throw new Error(`Failed to fetch image: ${response.statusText}`);
@@ -50,4 +51,3 @@ export async function processImage(imageUrl: string) {
     throw error;
   }
 }
-
