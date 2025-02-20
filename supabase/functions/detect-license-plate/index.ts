@@ -53,6 +53,7 @@ serve(async (req) => {
       throw new Error('AWS credentials not configured');
     }
 
+    console.log('Creating Rekognition client with IAM user nulab...');
     const client = new RekognitionClient({
       region: "us-east-2",
       credentials: {
@@ -63,7 +64,7 @@ serve(async (req) => {
     console.log('Rekognition client initialized successfully');
 
     // Detect text in image
-    console.log('Creating DetectText command...');
+    console.log('Creating DetectText command with image size:', imageBuffer.byteLength);
     const detectTextCommand = new DetectTextCommand({
       Image: {
         Bytes: new Uint8Array(imageBuffer),
