@@ -1,6 +1,6 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { RekognitionClient, DetectTextCommand, DetectLabelsCommand, DetectModerationLabelsCommand } from "https://esm.sh/@aws-sdk/client-rekognition";
+import { RekognitionClient, DetectTextCommand, DetectLabelsCommand } from "https://esm.sh/@aws-sdk/client-rekognition";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 
@@ -17,7 +17,7 @@ serve(async (req) => {
 
   try {
     console.log('Starting edge function...');
-    const { image_url, camera_id } = await req.json();
+    const { image_url } = await req.json();
     console.log(`Processing image from URL: ${image_url}`);
 
     if (!image_url) {
@@ -35,15 +35,11 @@ serve(async (req) => {
     // Initialize AWS client
     const rekognition = new RekognitionClient({
       credentials: {
-        accessKeyId: Deno.env.get('AWS_ACCESS_KEY_ID'),
-        secretAccessKey: Deno.env.get('AWS_SECRET_ACCESS_KEY'),
+        accessKeyId: Deno.env.get('AWS_ACCESS_KEY_ID') || '',
+        secretAccessKey: Deno.env.get('AWS_SECRET_ACCESS_KEY') || '',
       },
       region: "us-east-1"
     });
-
-    if (!Deno.env.get('AWS_ACCESS_KEY_ID') || !Deno.env.get('AWS_SECRET_ACCESS_KEY')) {
-      throw new Error('AWS credentials not configured');
-    }
 
     // Detect text (license plate)
     console.log('Starting text detection...');
@@ -90,7 +86,6 @@ serve(async (req) => {
       confidence: licensePlate.confidence,
       vehicle_type: vehicleLabel?.Name?.toLowerCase() || 'unknown',
       timestamp: new Date().toISOString(),
-      camera_id: camera_id || null,
       image_url
     };
 
@@ -111,8 +106,7 @@ serve(async (req) => {
     
     return new Response(
       JSON.stringify({ 
-        error: error instanceof Error ? error.message : 'An unknown error occurred',
-        success: false 
+        error: error instanceof Error ? error.message : 'An unknown error occurred' 
       }),
       { 
         status: 500,

@@ -7,7 +7,6 @@ import { toast } from "sonner";
 
 const VehicleImageUpload = () => {
   const sanitizeFileName = (fileName: string) => {
-    // Remove special characters and spaces, replace with underscores
     return fileName
       .replace(/[^a-zA-Z0-9.-]/g, '_')
       .replace(/_{2,}/g, '_')
@@ -24,49 +23,54 @@ const VehicleImageUpload = () => {
     const loadingToast = toast.loading('Processing image...');
 
     try {
-      // Sanitize filename
+      // Sanitize and create filename
       const sanitizedName = sanitizeFileName(file.name);
       const fileName = `${Date.now()}-${sanitizedName}`;
       
-      console.log('Uploading file:', fileName);
+      console.log('Starting upload for file:', fileName);
 
-      // Upload image
+      // Upload image to Supabase Storage
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('vehicle-images')
         .upload(fileName, file);
 
       if (uploadError) {
-        throw new Error(`Failed to upload image: ${uploadError.message}`);
+        throw new Error(`Upload failed: ${uploadError.message}`);
       }
 
-      console.log('Image uploaded successfully:', uploadData.path);
+      console.log('Upload successful:', uploadData);
 
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
+      // Get public URL for the uploaded file
+      const { data: urlData } = supabase.storage
         .from('vehicle-images')
         .getPublicUrl(uploadData.path);
 
-      console.log('Starting license plate detection with URL:', publicUrl);
+      if (!urlData.publicUrl) {
+        throw new Error('Failed to get public URL for uploaded image');
+      }
+
+      console.log('Starting license plate detection...');
 
       // Process image with edge function
-      const { data: detectionData, error: detectionError } = await supabase.functions
+      const { data, error: detectionError } = await supabase.functions
         .invoke('detect-license-plate', {
-          body: { 
-            image_url: publicUrl
-          }
+          body: { image_url: urlData.publicUrl }
         });
 
       if (detectionError) {
-        throw new Error(`Failed to process image: ${detectionError.message}`);
+        throw new Error(`Detection failed: ${detectionError.message}`);
       }
 
-      console.log('Detection completed:', detectionData);
+      if (!data) {
+        throw new Error('No data received from detection service');
+      }
 
+      console.log('Detection completed successfully:', data);
       toast.dismiss(loadingToast);
       toast.success('Vehicle processed successfully');
 
     } catch (error) {
-      console.error('Upload/processing error:', error);
+      console.error('Process failed:', error);
       toast.dismiss(loadingToast);
       toast.error(error instanceof Error ? error.message : 'Failed to process image');
     }
