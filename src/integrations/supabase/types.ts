@@ -275,8 +275,13 @@ export type Database = {
           color: string | null
           confidence: number | null
           created_at: string
+          damage_assessment: Json | null
+          damage_confidence: number | null
+          damage_detected: boolean | null
           detected_at: string | null
           detected_attributes: Json | null
+          entry_timestamp: string | null
+          exit_timestamp: string | null
           has_spoiler: boolean | null
           has_sunroof: boolean | null
           id: string
@@ -284,6 +289,7 @@ export type Database = {
           last_seen: string | null
           license_plate: string
           make: string | null
+          measurements: Json | null
           model: string | null
           orientation: string | null
           quality_score: number | null
@@ -294,8 +300,13 @@ export type Database = {
           color?: string | null
           confidence?: number | null
           created_at?: string
+          damage_assessment?: Json | null
+          damage_confidence?: number | null
+          damage_detected?: boolean | null
           detected_at?: string | null
           detected_attributes?: Json | null
+          entry_timestamp?: string | null
+          exit_timestamp?: string | null
           has_spoiler?: boolean | null
           has_sunroof?: boolean | null
           id?: string
@@ -303,6 +314,7 @@ export type Database = {
           last_seen?: string | null
           license_plate: string
           make?: string | null
+          measurements?: Json | null
           model?: string | null
           orientation?: string | null
           quality_score?: number | null
@@ -313,8 +325,13 @@ export type Database = {
           color?: string | null
           confidence?: number | null
           created_at?: string
+          damage_assessment?: Json | null
+          damage_confidence?: number | null
+          damage_detected?: boolean | null
           detected_at?: string | null
           detected_attributes?: Json | null
+          entry_timestamp?: string | null
+          exit_timestamp?: string | null
           has_spoiler?: boolean | null
           has_sunroof?: boolean | null
           id?: string
@@ -322,6 +339,7 @@ export type Database = {
           last_seen?: string | null
           license_plate?: string
           make?: string | null
+          measurements?: Json | null
           model?: string | null
           orientation?: string | null
           quality_score?: number | null

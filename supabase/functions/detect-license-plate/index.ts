@@ -1,6 +1,7 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
-import { RekognitionClient, DetectTextCommand, DetectLabelsCommand } from "npm:@aws-sdk/client-rekognition"
+import { RekognitionClient, DetectTextCommand, DetectLabelsCommand, DetectModerationLabelsCommand } from "npm:@aws-sdk/client-rekognition"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -19,36 +20,21 @@ serve(async (req) => {
       throw new Error('No image URL provided')
     }
 
-    // Log environment variables availability (safely)
-    console.log('Environment check:', {
-      hasAwsAccessKey: !!Deno.env.get('AWS_ACCESS_KEY_ID'),
-      hasAwsSecretKey: !!Deno.env.get('AWS_SECRET_ACCESS_KEY'),
-      awsRegion: 'us-east-1'
-    })
-
-    // Initialize AWS Rekognition client
-    const awsConfig = {
+    console.log('Initializing AWS Rekognition client...')
+    const rekognition = new RekognitionClient({
       region: "us-east-1",
       credentials: {
         accessKeyId: Deno.env.get('AWS_ACCESS_KEY_ID') || '',
         secretAccessKey: Deno.env.get('AWS_SECRET_ACCESS_KEY') || ''
       }
-    }
-
-    console.log('Initializing AWS Rekognition client with config:', {
-      region: awsConfig.region,
-      hasCredentials: !!(awsConfig.credentials.accessKeyId && awsConfig.credentials.secretAccessKey)
     })
 
-    const rekognition = new RekognitionClient(awsConfig)
-
-    // Initialize Supabase client
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Download image from Supabase Storage
+    // Download image
     console.log('Fetching image from URL:', image_url)
     const imageResponse = await fetch(image_url)
     if (!imageResponse.ok) {
@@ -59,29 +45,25 @@ serve(async (req) => {
     // Detect text for license plate
     console.log('Detecting text in image...')
     const detectTextCommand = new DetectTextCommand({
-      Image: {
-        Bytes: new Uint8Array(imageBuffer)
-      }
+      Image: { Bytes: new Uint8Array(imageBuffer) }
     })
-
-    try {
-      const textDetectionResult = await rekognition.send(detectTextCommand)
-      console.log('Text detection completed successfully')
-    } catch (error) {
-      console.error('AWS Rekognition text detection error:', error)
-      throw new Error(`AWS Rekognition error: ${error.message}`)
-    }
+    const textDetectionResult = await rekognition.send(detectTextCommand)
 
     // Detect labels for vehicle attributes
+    console.log('Detecting labels for vehicle attributes...')
     const detectLabelsCommand = new DetectLabelsCommand({
-      Image: {
-        Bytes: new Uint8Array(imageBuffer)
-      },
+      Image: { Bytes: new Uint8Array(imageBuffer) },
       MinConfidence: 50
     })
-
     const labelsResult = await rekognition.send(detectLabelsCommand)
-    
+
+    // Detect damage using moderation labels
+    console.log('Analyzing for vehicle damage...')
+    const moderationCommand = new DetectModerationLabelsCommand({
+      Image: { Bytes: new Uint8Array(imageBuffer) }
+    })
+    const moderationResult = await rekognition.send(moderationCommand)
+
     // Process license plate detection
     let bestMatch = null
     let highestConfidence = 0
@@ -104,7 +86,7 @@ serve(async (req) => {
       throw new Error('No license plate detected in the image')
     }
 
-    // Process vehicle attributes from labels
+    // Process vehicle attributes and damage detection
     const labels = labelsResult.Labels || []
     const detectedAttributes: Record<string, any> = {}
     let vehicleType = null
@@ -114,63 +96,83 @@ serve(async (req) => {
     let hasSunroof = false
     let hasSpoiler = false
 
+    // Extract measurements from bounding boxes
+    const measurements: Record<string, any> = {}
+    labels.forEach(label => {
+      if (label.Name && label.Instances && label.Instances.length > 0) {
+        const instance = label.Instances[0]
+        if (instance.BoundingBox) {
+          measurements[label.Name] = {
+            width: instance.BoundingBox.Width,
+            height: instance.BoundingBox.Height,
+            left: instance.BoundingBox.Left,
+            top: instance.BoundingBox.Top
+          }
+        }
+      }
+    })
+
+    // Process damage detection
+    const damageLabels = moderationResult.ModerationLabels || []
+    let damageDetected = false
+    let damageConfidence = 0
+    const damageAssessment: Record<string, any> = {}
+
+    damageLabels.forEach(label => {
+      if (label.Name?.toLowerCase().includes('damage') && label.Confidence) {
+        damageDetected = true
+        damageConfidence = Math.max(damageConfidence, label.Confidence / 100)
+        damageAssessment[label.Name] = label.Confidence / 100
+      }
+    })
+
+    // Process other vehicle attributes
     labels.forEach(label => {
       if (label.Name && label.Confidence) {
         detectedAttributes[label.Name] = label.Confidence / 100
 
-        // Determine vehicle type
         if (['Sedan', 'SUV', 'Truck', 'Van', 'Coupe', 'Hatchback'].includes(label.Name)) {
           vehicleType = label.Name
         }
-
-        // Check for specific features
         if (label.Name === 'Sunroof') hasSunroof = true
         if (label.Name === 'Spoiler') hasSpoiler = true
-
-        // Detect orientation
         if (['Front View', 'Rear View', 'Side View'].includes(label.Name)) {
           orientation = label.Name
         }
-
-        // Detect colors
         if (['Black', 'White', 'Red', 'Blue', 'Silver', 'Gray', 'Green', 'Yellow'].includes(label.Name)) {
           color = label.Name
         }
-
-        // Update quality score based on image quality labels
         if (['Clear', 'Sharp', 'Well Lit'].includes(label.Name)) {
           qualityScore = Math.max(qualityScore, label.Confidence / 100)
         }
       }
     })
 
-    console.log('Detected vehicle attributes:', {
-      license_plate: bestMatch.text,
-      vehicle_type: vehicleType,
-      color,
-      orientation,
-      quality_score: qualityScore,
-      has_sunroof: hasSunroof,
-      has_spoiler: hasSpoiler,
-      detected_attributes: detectedAttributes
-    })
+    const currentTime = new Date().toISOString()
 
-    // Store the vehicle information in the database
+    // Store vehicle information with new fields
     const { data: vehicleData, error: vehicleError } = await supabaseAdmin
       .from('vehicles')
       .upsert({
         license_plate: bestMatch.text,
         confidence: bestMatch.confidence,
         image_url: image_url,
-        detected_at: new Date().toISOString(),
-        last_seen: new Date().toISOString(),
+        detected_at: currentTime,
+        last_seen: currentTime,
         vehicle_type: vehicleType,
         color: color,
         orientation: orientation,
         quality_score: qualityScore,
         has_sunroof: hasSunroof,
         has_spoiler: hasSpoiler,
-        detected_attributes: detectedAttributes
+        detected_attributes: detectedAttributes,
+        // New fields
+        damage_detected: damageDetected,
+        damage_assessment: damageAssessment,
+        damage_confidence: damageConfidence,
+        measurements: measurements,
+        entry_timestamp: currentTime, // For new vehicles
+        exit_timestamp: null // Will be updated when vehicle exits
       }, {
         onConflict: 'license_plate',
         ignoreDuplicates: false
@@ -182,54 +184,23 @@ serve(async (req) => {
       throw vehicleError
     }
 
-    // Create an alert for the detected vehicle
-    const { error: alertError } = await supabaseAdmin
-      .from('alerts')
-      .insert({
-        message: `License plate ${bestMatch.text} detected`,
-        alert_type: 'vehicle_detected',
-        severity: 'info',
-        confidence: bestMatch.confidence,
-        vehicle_id: vehicleData.id,
-        camera_id: camera_id,
-        event_type: 'license_plate_detection',
-        event_metadata: {
-          license_plate: bestMatch.text,
-          confidence: bestMatch.confidence,
-          image_url: image_url,
-          vehicle_type: vehicleType,
-          color: color
-        }
-      })
-
-    if (alertError) {
-      throw alertError
-    }
-
-    // Log analytics event
-    const { error: analyticsError } = await supabaseAdmin
-      .from('analytics')
-      .insert({
-        event_type: 'license_plate_detection',
-        camera_id: camera_id,
-        vehicle_id: vehicleData.id,
-        event_data: {
-          license_plate: bestMatch.text,
-          confidence: bestMatch.confidence,
-          image_url: image_url,
-          vehicle_attributes: {
-            type: vehicleType,
-            color: color,
-            orientation: orientation,
-            quality_score: qualityScore,
-            has_sunroof: hasSunroof,
-            has_spoiler: hasSpoiler
+    // Create an alert for damage detection if damage is found
+    if (damageDetected) {
+      await supabaseAdmin
+        .from('alerts')
+        .insert({
+          message: `Damage detected on vehicle ${bestMatch.text}`,
+          alert_type: 'damage_detected',
+          severity: 'warning',
+          confidence: damageConfidence,
+          vehicle_id: vehicleData.id,
+          camera_id: camera_id,
+          event_type: 'damage_detection',
+          event_metadata: {
+            damage_assessment: damageAssessment,
+            confidence: damageConfidence
           }
-        }
-      })
-
-    if (analyticsError) {
-      throw analyticsError
+        })
     }
 
     return new Response(
@@ -239,24 +210,19 @@ serve(async (req) => {
           license_plate: bestMatch.text,
           confidence: bestMatch.confidence,
           vehicle_id: vehicleData.id,
+          damage_detected: damageDetected,
+          damage_confidence: damageConfidence,
+          measurements: measurements,
           vehicle_type: vehicleType,
           color: color,
-          orientation: orientation,
-          quality_score: qualityScore,
-          has_sunroof: hasSunroof,
-          has_spoiler: hasSpoiler
+          orientation: orientation
         }
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 
   } catch (error) {
-    console.error('Error details:', {
-      message: error.message,
-      stack: error.stack,
-      name: error.name
-    })
-    
+    console.error('Error processing image:', error)
     return new Response(
       JSON.stringify({
         success: false,
