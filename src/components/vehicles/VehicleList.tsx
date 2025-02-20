@@ -21,7 +21,7 @@ interface Vehicle {
   confidence: number;
   make?: string;
   model?: string;
-  year?: string;
+  year?: number;  // Changed from string to number to match database type
   vehicle_type?: string;
   measurements?: VehicleMeasurements;
   damage_detected?: boolean;
