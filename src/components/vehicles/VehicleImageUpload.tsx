@@ -8,11 +8,16 @@ import { toast } from "sonner";
 const VehicleImageUpload = () => {
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file) return;
+    if (!file) {
+      console.log('No file selected');
+      return;
+    }
 
+    console.log('Starting upload for file:', file.name);
     const loadingToast = toast.loading('Processing image...');
 
     try {
+      console.log('Uploading to storage...');
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('vehicle-images')
         .upload(`${Date.now()}-${file.name}`, file);
@@ -27,7 +32,9 @@ const VehicleImageUpload = () => {
         .getPublicUrl(uploadData.path);
 
       console.log('Image uploaded successfully, URL:', publicUrl);
+      console.log('File path:', uploadData.path);
 
+      console.log('Calling detect-license-plate function...');
       const { data: detectionData, error: detectionError } = await supabase.functions
         .invoke('detect-license-plate', {
           body: {
