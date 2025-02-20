@@ -1,7 +1,6 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { RekognitionClient, DetectTextCommand, DetectLabelsCommand } from "https://esm.sh/@aws-sdk/client-rekognition";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 
 const corsHeaders = {
@@ -18,10 +17,11 @@ serve(async (req) => {
   try {
     console.log('Starting edge function...');
     
-    // Validate request body
+    // Parse request body with better error handling
     let body;
     try {
       body = await req.json();
+      console.log('Request body:', JSON.stringify(body, null, 2));
     } catch (e) {
       console.error('Failed to parse request body:', e);
       return new Response(
@@ -35,7 +35,7 @@ serve(async (req) => {
 
     const { image_url } = body;
     if (!image_url) {
-      console.error('No image URL provided in request body');
+      console.error('No image URL provided');
       return new Response(
         JSON.stringify({ error: 'No image URL provided' }),
         { 
@@ -46,11 +46,11 @@ serve(async (req) => {
     }
     console.log('Processing image URL:', image_url);
 
-    // Test AWS credentials
+    // Validate AWS credentials early
     const accessKeyId = Deno.env.get('AWS_ACCESS_KEY_ID');
     const secretAccessKey = Deno.env.get('AWS_SECRET_ACCESS_KEY');
     if (!accessKeyId || !secretAccessKey) {
-      console.error('Missing AWS credentials');
+      console.error('AWS credentials missing');
       return new Response(
         JSON.stringify({ error: 'AWS credentials not configured' }),
         { 
@@ -61,15 +61,15 @@ serve(async (req) => {
     }
     console.log('AWS credentials found');
 
-    // Download image with error handling
+    // Download image
     let imageResponse;
     try {
-      console.log('Attempting to download image...');
+      console.log('Downloading image...');
       imageResponse = await fetch(image_url);
       if (!imageResponse.ok) {
         throw new Error(`Failed to download image: ${imageResponse.status} ${imageResponse.statusText}`);
       }
-      console.log('Image downloaded successfully');
+      console.log('Image download successful');
     } catch (e) {
       console.error('Image download failed:', e);
       return new Response(
@@ -81,11 +81,12 @@ serve(async (req) => {
       );
     }
 
+    // Convert image to bytes
     const imageBuffer = await imageResponse.arrayBuffer();
     const imageBytes = new Uint8Array(imageBuffer);
     console.log('Image converted to bytes, size:', imageBytes.length);
 
-    // Initialize AWS client
+    // Initialize AWS Rekognition client
     console.log('Initializing AWS Rekognition client...');
     const rekognition = new RekognitionClient({
       credentials: {
@@ -103,11 +104,14 @@ serve(async (req) => {
         Image: { Bytes: imageBytes }
       });
       textResponse = await rekognition.send(textCommand);
-      console.log('Text detection successful:', JSON.stringify(textResponse.TextDetections, null, 2));
+      console.log('Text detection successful, found:', textResponse.TextDetections?.length, 'text elements');
     } catch (e) {
       console.error('Text detection failed:', e);
       return new Response(
-        JSON.stringify({ error: `Text detection failed: ${e.message}` }),
+        JSON.stringify({ 
+          error: 'Text detection failed',
+          details: e instanceof Error ? e.message : 'Unknown error'
+        }),
         { 
           status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -115,6 +119,7 @@ serve(async (req) => {
       );
     }
 
+    // Validate text detection results
     if (!textResponse.TextDetections || textResponse.TextDetections.length === 0) {
       console.log('No text detected in image');
       return new Response(
@@ -126,7 +131,7 @@ serve(async (req) => {
       );
     }
 
-    // Detect labels
+    // Detect vehicle labels
     console.log('Starting label detection...');
     let labelsResponse;
     try {
@@ -135,11 +140,14 @@ serve(async (req) => {
         MinConfidence: 80
       });
       labelsResponse = await rekognition.send(labelsCommand);
-      console.log('Label detection successful:', JSON.stringify(labelsResponse.Labels, null, 2));
+      console.log('Label detection successful, found:', labelsResponse.Labels?.length, 'labels');
     } catch (e) {
       console.error('Label detection failed:', e);
       return new Response(
-        JSON.stringify({ error: `Label detection failed: ${e.message}` }),
+        JSON.stringify({ 
+          error: 'Label detection failed',
+          details: e instanceof Error ? e.message : 'Unknown error'
+        }),
         { 
           status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -181,9 +189,9 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Unexpected error in detect-license-plate function:', error);
+    console.error('Unexpected error:', error);
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         error: 'An unexpected error occurred',
         details: error instanceof Error ? error.message : 'Unknown error'
       }),
