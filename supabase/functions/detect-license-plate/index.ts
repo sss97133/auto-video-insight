@@ -1,7 +1,11 @@
 
 import { corsHeaders } from "./utils/cors.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { RekognitionClient, DetectTextCommand } from "npm:@aws-sdk/client-rekognition";
+import { 
+  RekognitionClient,
+  DetectTextCommand,
+  DetectLabelsCommand 
+} from "https://deno.land/x/aws_sdk@v3.32.0-1/client-rekognition/mod.ts";
 
 serve(async (req) => {
   console.log('Request received:', {
@@ -41,27 +45,50 @@ serve(async (req) => {
 
     // Initialize AWS Rekognition client
     console.log('Initializing Rekognition client...');
+    const accessKeyId = Deno.env.get("AWS_ACCESS_KEY_ID");
+    const secretAccessKey = Deno.env.get("AWS_SECRET_ACCESS_KEY");
+    
+    if (!accessKeyId || !secretAccessKey) {
+      console.error('AWS credentials not found in environment');
+      throw new Error('AWS credentials not configured');
+    }
+
     const client = new RekognitionClient({
       region: "us-east-2",
       credentials: {
-        accessKeyId: Deno.env.get("AWS_ACCESS_KEY_ID") || '',
-        secretAccessKey: Deno.env.get("AWS_SECRET_ACCESS_KEY") || '',
+        accessKeyId,
+        secretAccessKey,
       },
     });
-    console.log('Rekognition client initialized');
+    console.log('Rekognition client initialized successfully');
 
     // Detect text in image
-    console.log('Sending image to Rekognition...');
-    const command = new DetectTextCommand({
+    console.log('Creating DetectText command...');
+    const detectTextCommand = new DetectTextCommand({
       Image: {
         Bytes: new Uint8Array(imageBuffer),
       },
     });
 
-    const textResponse = await client.send(command);
-    console.log('Rekognition response:', textResponse);
+    console.log('Sending DetectText request to Rekognition...');
+    const textResponse = await client.send(detectTextCommand);
+    console.log('Text detection response:', JSON.stringify(textResponse, null, 2));
 
-    // Process results
+    // Detect labels for vehicle type
+    console.log('Creating DetectLabels command...');
+    const detectLabelsCommand = new DetectLabelsCommand({
+      Image: {
+        Bytes: new Uint8Array(imageBuffer),
+      },
+      MaxLabels: 10,
+      MinConfidence: 70,
+    });
+
+    console.log('Sending DetectLabels request to Rekognition...');
+    const labelsResponse = await client.send(detectLabelsCommand);
+    console.log('Label detection response:', JSON.stringify(labelsResponse, null, 2));
+
+    // Process text results
     const detectedText = textResponse.TextDetections || [];
     const licensePlate = detectedText.find(text => 
       text.Type === 'LINE' && 
@@ -73,22 +100,33 @@ serve(async (req) => {
       throw new Error('No valid license plate detected in image');
     }
 
+    // Find vehicle type from labels
+    const vehicleLabels = labelsResponse.Labels?.filter(label => 
+      ['Car', 'Automobile', 'Vehicle', 'Truck', 'Van', 'SUV', 'Pickup Truck'].includes(label.Name || '')
+    ) || [];
+    
+    const vehicleType = vehicleLabels.length > 0 ? vehicleLabels[0].Name : "Unknown";
+
     // Construct response
     const result = {
       license_plate: licensePlate.DetectedText,
       confidence: licensePlate.Confidence ? licensePlate.Confidence / 100 : 0,
-      vehicle_type: "Unknown", // This would need additional processing to determine
+      vehicle_type: vehicleType,
       vehicle_details: {
         detected_text: detectedText.map(text => ({
           text: text.DetectedText,
           type: text.Type,
           confidence: text.Confidence ? text.Confidence / 100 : 0,
+        })),
+        labels: labelsResponse.Labels?.map(label => ({
+          name: label.Name,
+          confidence: label.Confidence ? label.Confidence / 100 : 0,
         }))
       },
       bounding_box: licensePlate.Geometry?.BoundingBox || null
     };
 
-    console.log('Processing complete, returning result:', result);
+    console.log('Processing complete, returning result:', JSON.stringify(result, null, 2));
 
     return new Response(JSON.stringify(result), {
       headers: {
@@ -108,7 +146,7 @@ serve(async (req) => {
     
     return new Response(JSON.stringify({
       error: error.message || 'Internal server error',
-      details: error.cause || error.stack
+      details: error.stack || error.cause
     }), {
       headers: {
         ...corsHeaders,
@@ -118,3 +156,4 @@ serve(async (req) => {
     });
   }
 });
+
