@@ -17,51 +17,67 @@ serve(async (req) => {
 
   try {
     console.log('Starting edge function...');
+    
+    // Validate request body
     const { image_url } = await req.json();
-    console.log(`Processing image from URL: ${image_url}`);
-
     if (!image_url) {
       throw new Error('No image URL provided');
     }
+    console.log('Processing image URL:', image_url);
 
-    // Download image
+    // Download image with error handling
     const imageResponse = await fetch(image_url);
     if (!imageResponse.ok) {
-      throw new Error(`Failed to download image: ${imageResponse.statusText}`);
+      throw new Error(`Failed to download image: ${imageResponse.status} ${imageResponse.statusText}`);
     }
-    const imageBytes = new Uint8Array(await imageResponse.arrayBuffer());
-    console.log('Image downloaded successfully');
+    const imageBuffer = await imageResponse.arrayBuffer();
+    const imageBytes = new Uint8Array(imageBuffer);
+    console.log('Image downloaded successfully, size:', imageBytes.length);
+
+    // Validate AWS credentials
+    const accessKeyId = Deno.env.get('AWS_ACCESS_KEY_ID');
+    const secretAccessKey = Deno.env.get('AWS_SECRET_ACCESS_KEY');
+    if (!accessKeyId || !secretAccessKey) {
+      throw new Error('AWS credentials not configured');
+    }
 
     // Initialize AWS client
     const rekognition = new RekognitionClient({
       credentials: {
-        accessKeyId: Deno.env.get('AWS_ACCESS_KEY_ID') || '',
-        secretAccessKey: Deno.env.get('AWS_SECRET_ACCESS_KEY') || '',
+        accessKeyId,
+        secretAccessKey,
       },
       region: "us-east-1"
     });
 
-    // Detect text (license plate)
+    // Detect text (license plate) with error handling
     console.log('Starting text detection...');
     const textCommand = new DetectTextCommand({
       Image: { Bytes: imageBytes }
     });
     
     const textResponse = await rekognition.send(textCommand);
-    console.log('Text detection completed:', textResponse);
+    console.log('Text detection response:', JSON.stringify(textResponse, null, 2));
 
     if (!textResponse.TextDetections || textResponse.TextDetections.length === 0) {
-      throw new Error('No text detected in image');
+      return new Response(
+        JSON.stringify({ error: 'No text detected in image' }),
+        { 
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
     }
 
-    // Get vehicle type and labels
+    // Get vehicle type and labels with error handling
     console.log('Starting label detection...');
     const labelsCommand = new DetectLabelsCommand({
       Image: { Bytes: imageBytes },
       MinConfidence: 80
     });
+    
     const labelsResponse = await rekognition.send(labelsCommand);
-    console.log('Label detection completed:', labelsResponse);
+    console.log('Label detection response:', JSON.stringify(labelsResponse, null, 2));
 
     // Process results
     const licensePlate = textResponse.TextDetections
@@ -72,18 +88,14 @@ serve(async (req) => {
       }))
       .sort((a, b) => b.confidence - a.confidence)[0];
 
-    if (!licensePlate) {
-      throw new Error('No license plate detected in image');
-    }
-
     // Get vehicle type
     const vehicleLabel = labelsResponse.Labels?.find(label => 
       ['Car', 'Automobile', 'Vehicle', 'Transportation'].includes(label.Name || '')
     );
 
     const result = {
-      license_plate: licensePlate.text,
-      confidence: licensePlate.confidence,
+      license_plate: licensePlate?.text || '',
+      confidence: licensePlate?.confidence || 0,
       vehicle_type: vehicleLabel?.Name?.toLowerCase() || 'unknown',
       timestamp: new Date().toISOString(),
       image_url
@@ -104,9 +116,11 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error in detect-license-plate function:', error);
     
+    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
     return new Response(
       JSON.stringify({ 
-        error: error instanceof Error ? error.message : 'An unknown error occurred' 
+        error: errorMessage,
+        details: error instanceof Error ? error.stack : undefined
       }),
       { 
         status: 500,
