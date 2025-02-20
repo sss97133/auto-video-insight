@@ -1,8 +1,8 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { RekognitionClient, DetectTextCommand, DetectLabelsCommand, DetectModerationLabelsCommand } from "https://esm.sh/@aws-sdk/client-rekognition";
-import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -25,29 +25,38 @@ serve(async (req) => {
     }
 
     // Download image
-    const response = await fetch(image_url);
-    if (!response.ok) {
-      throw new Error(`Failed to download image: ${response.statusText}`);
+    const imageResponse = await fetch(image_url);
+    if (!imageResponse.ok) {
+      throw new Error(`Failed to download image: ${imageResponse.statusText}`);
     }
-    const imageBytes = new Uint8Array(await response.arrayBuffer());
+    const imageBytes = new Uint8Array(await imageResponse.arrayBuffer());
     console.log('Image downloaded successfully');
 
     // Initialize AWS client
     const rekognition = new RekognitionClient({
       credentials: {
-        accessKeyId: Deno.env.get('AWS_ACCESS_KEY_ID') || '',
-        secretAccessKey: Deno.env.get('AWS_SECRET_ACCESS_KEY') || '',
+        accessKeyId: Deno.env.get('AWS_ACCESS_KEY_ID'),
+        secretAccessKey: Deno.env.get('AWS_SECRET_ACCESS_KEY'),
       },
       region: "us-east-1"
     });
+
+    if (!Deno.env.get('AWS_ACCESS_KEY_ID') || !Deno.env.get('AWS_SECRET_ACCESS_KEY')) {
+      throw new Error('AWS credentials not configured');
+    }
 
     // Detect text (license plate)
     console.log('Starting text detection...');
     const textCommand = new DetectTextCommand({
       Image: { Bytes: imageBytes }
     });
+    
     const textResponse = await rekognition.send(textCommand);
-    console.log('Text detection completed');
+    console.log('Text detection completed:', textResponse);
+
+    if (!textResponse.TextDetections || textResponse.TextDetections.length === 0) {
+      throw new Error('No text detected in image');
+    }
 
     // Get vehicle type and labels
     console.log('Starting label detection...');
@@ -56,23 +65,14 @@ serve(async (req) => {
       MinConfidence: 80
     });
     const labelsResponse = await rekognition.send(labelsCommand);
-    console.log('Label detection completed');
-
-    // Check for damage
-    console.log('Starting moderation check...');
-    const moderationCommand = new DetectModerationLabelsCommand({
-      Image: { Bytes: imageBytes },
-      MinConfidence: 60
-    });
-    const moderationResponse = await rekognition.send(moderationCommand);
-    console.log('Moderation check completed');
+    console.log('Label detection completed:', labelsResponse);
 
     // Process results
-    const licensePlate = (textResponse.TextDetections || [])
+    const licensePlate = textResponse.TextDetections
       .filter(text => text.Type === 'LINE')
       .map(text => ({
         text: text.DetectedText,
-        confidence: (text.Confidence || 0) / 100
+        confidence: text.Confidence ? text.Confidence / 100 : 0
       }))
       .sort((a, b) => b.confidence - a.confidence)[0];
 
@@ -81,35 +81,45 @@ serve(async (req) => {
     }
 
     // Get vehicle type
-    const vehicleLabel = (labelsResponse.Labels || []).find(label => 
+    const vehicleLabel = labelsResponse.Labels?.find(label => 
       ['Car', 'Automobile', 'Vehicle', 'Transportation'].includes(label.Name || '')
     );
 
-    // Process results
     const result = {
       license_plate: licensePlate.text,
       confidence: licensePlate.confidence,
-      vehicle_type: vehicleLabel?.Name?.toLowerCase() || null,
+      vehicle_type: vehicleLabel?.Name?.toLowerCase() || 'unknown',
       timestamp: new Date().toISOString(),
-      camera_id,
+      camera_id: camera_id || null,
       image_url
     };
 
-    console.log('Processing completed successfully');
+    console.log('Processing completed successfully:', result);
 
-    return new Response(JSON.stringify(result), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
+    return new Response(
+      JSON.stringify(result),
+      { 
+        headers: { 
+          ...corsHeaders,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
 
   } catch (error) {
     console.error('Error in detect-license-plate function:', error);
+    
     return new Response(
       JSON.stringify({ 
-        error: error.message,
+        error: error instanceof Error ? error.message : 'An unknown error occurred',
         success: false 
-      }), {
+      }),
+      { 
         status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        headers: { 
+          ...corsHeaders,
+          'Content-Type': 'application/json'
+        }
       }
     );
   }
