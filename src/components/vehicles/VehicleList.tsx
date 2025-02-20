@@ -31,37 +31,48 @@ const VehicleList = () => {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    const loadingToast = toast.loading('Processing image...');
+
     try {
-      // Upload image to Supabase Storage
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Math.random()}.${fileExt}`;
+      // First, create the storage bucket if it doesn't exist (this is handled by RLS)
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('vehicle-images')
-        .upload(fileName, file);
+        .upload(`${Date.now()}-${file.name}`, file);
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error('Storage upload error:', uploadError);
+        throw new Error('Failed to upload image to storage');
+      }
 
-      // Get public URL
-      const { data: urlData } = supabase.storage
+      // Get public URL for the uploaded image
+      const { data: { publicUrl } } = supabase.storage
         .from('vehicle-images')
-        .getPublicUrl(fileName);
+        .getPublicUrl(uploadData.path);
 
-      if (!urlData.publicUrl) throw new Error('Failed to get public URL');
+      console.log('Image uploaded successfully, URL:', publicUrl);
 
-      // Call the license plate detection function
-      const response = await supabase.functions.invoke('detect-license-plate', {
-        body: {
-          image_url: urlData.publicUrl,
-          camera_id: null // Manual upload
-        }
-      });
+      // Call the license plate detection function with the public URL
+      const { data: detectionData, error: detectionError } = await supabase.functions
+        .invoke('detect-license-plate', {
+          body: {
+            image_url: publicUrl,
+            camera_id: null // Manual upload
+          }
+        });
 
-      if (response.error) throw new Error(response.error);
+      if (detectionError) {
+        console.error('Detection error:', detectionError);
+        throw new Error('Failed to process image');
+      }
 
-      toast.success('Vehicle detection completed');
+      console.log('Detection completed:', detectionData);
+      toast.dismiss(loadingToast);
+      toast.success('Vehicle processed successfully');
+
     } catch (error) {
       console.error('Error processing image:', error);
-      toast.error('Failed to process image');
+      toast.dismiss(loadingToast);
+      toast.error(error instanceof Error ? error.message : 'Failed to process image');
     }
   };
 
