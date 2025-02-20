@@ -1,7 +1,6 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { RekognitionClient, DetectTextCommand, DetectLabelsCommand } from "https://esm.sh/@aws-sdk/client-rekognition";
-import "https://deno.land/x/xhr@0.1.0/mod.ts";
+import { RekognitionClient, DetectTextCommand, DetectLabelsCommand } from "npm:@aws-sdk/client-rekognition";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -17,10 +16,11 @@ serve(async (req) => {
   try {
     console.log('Starting edge function...');
     
-    // Parse request body with better error handling
+    // Parse request body
     let body;
     try {
-      body = await req.json();
+      const text = await req.text();
+      body = JSON.parse(text);
       console.log('Request body:', JSON.stringify(body, null, 2));
     } catch (e) {
       console.error('Failed to parse request body:', e);
