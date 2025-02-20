@@ -16,18 +16,6 @@ const VehicleImageUpload = () => {
     const loadingToast = toast.loading('Processing image...');
 
     try {
-      // First create storage bucket if it doesn't exist
-      const { data: bucket } = await supabase.storage.getBucket('vehicle-images');
-      if (!bucket) {
-        const { error: bucketError } = await supabase.storage.createBucket('vehicle-images', {
-          public: true,
-          fileSizeLimit: 52428800 // 50MB
-        });
-        if (bucketError) {
-          throw new Error('Failed to create storage bucket');
-        }
-      }
-
       // Upload image
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('vehicle-images')
@@ -87,3 +75,4 @@ const VehicleImageUpload = () => {
 };
 
 export default VehicleImageUpload;
+
