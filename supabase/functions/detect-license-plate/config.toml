@@ -3,3 +3,4 @@ project_id = "vacopqvxiqtuaygukpjy"
 
 [global.env]
 # No need to add anything here as we'll use the Supabase secrets
+

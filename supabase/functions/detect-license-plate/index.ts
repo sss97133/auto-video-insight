@@ -1,14 +1,10 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { RekognitionClient, DetectTextCommand, DetectLabelsCommand } from "npm:@aws-sdk/client-rekognition";
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import { corsHeaders } from "./utils/cors.ts";
+import { RekognitionService } from "./services/rekognition.ts";
+import { ImageProcessor } from "./handlers/imageProcessor.ts";
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -86,100 +82,18 @@ serve(async (req) => {
     const imageBytes = new Uint8Array(imageBuffer);
     console.log('Image converted to bytes, size:', imageBytes.length);
 
-    // Initialize AWS Rekognition client
-    console.log('Initializing AWS Rekognition client...');
-    const rekognition = new RekognitionClient({
-      credentials: {
-        accessKeyId,
-        secretAccessKey,
-      },
-      region: "us-east-1"
-    });
-
-    // Detect text (license plate)
-    console.log('Starting text detection...');
-    let textResponse;
-    try {
-      const textCommand = new DetectTextCommand({
-        Image: { Bytes: imageBytes }
-      });
-      textResponse = await rekognition.send(textCommand);
-      console.log('Text detection successful, found:', textResponse.TextDetections?.length, 'text elements');
-    } catch (e) {
-      console.error('Text detection failed:', e);
-      return new Response(
-        JSON.stringify({ 
-          error: 'Text detection failed',
-          details: e instanceof Error ? e.message : 'Unknown error'
-        }),
-        { 
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      );
-    }
-
-    // Validate text detection results
-    if (!textResponse.TextDetections || textResponse.TextDetections.length === 0) {
-      console.log('No text detected in image');
-      return new Response(
-        JSON.stringify({ error: 'No text detected in image' }),
-        { 
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      );
-    }
-
-    // Detect vehicle labels
-    console.log('Starting label detection...');
-    let labelsResponse;
-    try {
-      const labelsCommand = new DetectLabelsCommand({
-        Image: { Bytes: imageBytes },
-        MinConfidence: 80
-      });
-      labelsResponse = await rekognition.send(labelsCommand);
-      console.log('Label detection successful, found:', labelsResponse.Labels?.length, 'labels');
-    } catch (e) {
-      console.error('Label detection failed:', e);
-      return new Response(
-        JSON.stringify({ 
-          error: 'Label detection failed',
-          details: e instanceof Error ? e.message : 'Unknown error'
-        }),
-        { 
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      );
-    }
-
-    // Process results
-    const licensePlate = textResponse.TextDetections
-      .filter(text => text.Type === 'LINE')
-      .map(text => ({
-        text: text.DetectedText,
-        confidence: text.Confidence ? text.Confidence / 100 : 0
-      }))
-      .sort((a, b) => b.confidence - a.confidence)[0];
-
-    const vehicleLabel = labelsResponse.Labels?.find(label => 
-      ['Car', 'Automobile', 'Vehicle', 'Transportation'].includes(label.Name || '')
-    );
-
-    const result = {
-      license_plate: licensePlate?.text || '',
-      confidence: licensePlate?.confidence || 0,
-      vehicle_type: vehicleLabel?.Name?.toLowerCase() || 'unknown',
-      timestamp: new Date().toISOString(),
-      image_url
-    };
-
+    // Process image
+    const rekognition = new RekognitionService(accessKeyId, secretAccessKey);
+    const imageProcessor = new ImageProcessor(rekognition);
+    
+    const result = await imageProcessor.processImage(imageBytes);
     console.log('Processing completed successfully:', result);
 
     return new Response(
-      JSON.stringify(result),
+      JSON.stringify({
+        ...result,
+        image_url
+      }),
       { 
         headers: { 
           ...corsHeaders,
@@ -205,3 +119,4 @@ serve(async (req) => {
     );
   }
 });
+
