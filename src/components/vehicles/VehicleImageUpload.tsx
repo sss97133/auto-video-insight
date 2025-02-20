@@ -1,15 +1,15 @@
 
 import React, { useState } from "react";
-import { Upload, Check, Loader2 } from "lucide-react";
+import { Upload, Check, Loader2, X } from "lucide-react";
 import { Button } from "../ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Card, CardContent } from "../ui/card";
 
 interface ProgressState {
-  upload: 'pending' | 'processing' | 'complete';
-  recognition: 'pending' | 'processing' | 'complete';
-  saving: 'pending' | 'processing' | 'complete';
+  upload: 'pending' | 'processing' | 'complete' | 'error';
+  recognition: 'pending' | 'processing' | 'complete' | 'error';
+  saving: 'pending' | 'processing' | 'complete' | 'error';
 }
 
 const VehicleImageUpload = () => {
@@ -58,6 +58,7 @@ const VehicleImageUpload = () => {
 
       if (uploadError) {
         console.error('Upload error:', uploadError);
+        setProgress(prev => ({ ...prev, upload: 'error' }));
         throw new Error(`Upload failed: ${uploadError.message}`);
       }
 
@@ -71,6 +72,7 @@ const VehicleImageUpload = () => {
 
       if (!urlData.publicUrl) {
         console.error('Failed to get public URL');
+        setProgress(prev => ({ ...prev, recognition: 'error' }));
         throw new Error('Failed to get public URL for uploaded image');
       }
 
@@ -85,11 +87,13 @@ const VehicleImageUpload = () => {
 
       if (detectionError) {
         console.error('Detection error:', detectionError);
+        setProgress(prev => ({ ...prev, recognition: 'error' }));
         throw new Error(`Detection failed: ${detectionError.message}`);
       }
 
       if (!detectionData) {
         console.error('No detection data received');
+        setProgress(prev => ({ ...prev, recognition: 'error' }));
         throw new Error('No data received from detection service');
       }
 
@@ -111,6 +115,7 @@ const VehicleImageUpload = () => {
 
       if (insertError) {
         console.error('Database insert error:', insertError);
+        setProgress(prev => ({ ...prev, saving: 'error' }));
         throw new Error(`Failed to save vehicle data: ${insertError.message}`);
       }
 
@@ -120,25 +125,27 @@ const VehicleImageUpload = () => {
     } catch (error) {
       console.error('Process failed:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to process image');
-      setProgress({
-        upload: 'pending',
-        recognition: 'pending',
-        saving: 'pending'
-      });
-      setSelectedImage(null);
+      // Note: We're not resetting the states anymore, so the error state remains visible
     }
   };
 
-  const ProgressItem = ({ status, label }: { status: 'pending' | 'processing' | 'complete', label: string }) => (
+  const ProgressItem = ({ status, label }: { status: 'pending' | 'processing' | 'complete' | 'error', label: string }) => (
     <div className="flex items-center gap-2">
       {status === 'complete' ? (
         <Check className="h-5 w-5 text-green-500" />
       ) : status === 'processing' ? (
         <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
+      ) : status === 'error' ? (
+        <X className="h-5 w-5 text-red-500" />
       ) : (
         <div className="h-5 w-5 rounded-full border-2 border-gray-200" />
       )}
-      <span className={status === 'complete' ? 'text-green-500' : status === 'processing' ? 'text-blue-500' : 'text-gray-500'}>
+      <span className={
+        status === 'complete' ? 'text-green-500' : 
+        status === 'processing' ? 'text-blue-500' : 
+        status === 'error' ? 'text-red-500' : 
+        'text-gray-500'
+      }>
         {label}
       </span>
     </div>
