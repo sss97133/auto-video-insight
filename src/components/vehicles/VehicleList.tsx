@@ -4,9 +4,9 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardHeader, CardTitle, CardContent } from "../ui/card";
 import { Badge } from "../ui/badge";
-import { Car, Upload, PaintBucket, ArrowRight } from "lucide-react";
+import { Car, Upload, PaintBucket, ArrowRight, Clock } from "lucide-react";
 import { toast } from "sonner";
-import { format } from "date-fns";
+import { format, formatDistanceToNow } from "date-fns";
 import { Button } from "../ui/button";
 
 const VehicleList = () => {
@@ -34,7 +34,6 @@ const VehicleList = () => {
     const loadingToast = toast.loading('Processing image...');
 
     try {
-      // First, create the storage bucket if it doesn't exist (this is handled by RLS)
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('vehicle-images')
         .upload(`${Date.now()}-${file.name}`, file);
@@ -44,14 +43,12 @@ const VehicleList = () => {
         throw new Error('Failed to upload image to storage');
       }
 
-      // Get public URL for the uploaded image
       const { data: { publicUrl } } = supabase.storage
         .from('vehicle-images')
         .getPublicUrl(uploadData.path);
 
       console.log('Image uploaded successfully, URL:', publicUrl);
 
-      // Call the license plate detection function with the public URL
       const { data: detectionData, error: detectionError } = await supabase.functions
         .invoke('detect-license-plate', {
           body: {
@@ -114,7 +111,7 @@ const VehicleList = () => {
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-lg">{vehicle.license_plate}</CardTitle>
-                  <Badge variant={vehicle.confidence > 0.8 ? "default" : "secondary"}>
+                  <Badge variant={getQualityBadgeVariant(vehicle.confidence)}>
                     {Math.round(vehicle.confidence * 100)}% Match
                   </Badge>
                 </div>
@@ -128,45 +125,45 @@ const VehicleList = () => {
                     </span>
                   </div>
 
-                  {/* Vehicle Type and Color */}
-                  {(vehicle.vehicle_type || vehicle.color) && (
+                  {/* Vehicle Type and Measurements */}
+                  {(vehicle.vehicle_type || vehicle.measurements) && (
                     <div className="flex items-center gap-2">
                       <PaintBucket className="w-4 h-4 text-gray-500" />
                       <span className="text-sm text-gray-600">
-                        {[vehicle.color, vehicle.vehicle_type].filter(Boolean).join(' ')}
+                        {vehicle.vehicle_type}
+                        {vehicle.measurements && (
+                          <span className="ml-1">
+                            ({Math.round(vehicle.measurements.aspect_ratio * 100) / 100} ratio)
+                          </span>
+                        )}
                       </span>
                     </div>
                   )}
 
-                  {/* Vehicle Features */}
-                  {(vehicle.has_sunroof || vehicle.has_spoiler) && (
-                    <div className="flex gap-2">
-                      {vehicle.has_sunroof && (
-                        <Badge variant="outline">Sunroof</Badge>
-                      )}
-                      {vehicle.has_spoiler && (
-                        <Badge variant="outline">Spoiler</Badge>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Orientation and Quality Score */}
-                  {(vehicle.orientation || vehicle.quality_score) && (
+                  {/* Time on Premises */}
+                  {vehicle.entry_timestamp && (
                     <div className="flex items-center gap-2">
-                      <ArrowRight className="w-4 h-4 text-gray-500" />
+                      <Clock className="w-4 h-4 text-gray-500" />
                       <span className="text-sm text-gray-600">
-                        {vehicle.orientation}
+                        Entry: {format(new Date(vehicle.entry_timestamp), 'MMM dd, HH:mm')}
+                        {vehicle.exit_timestamp && (
+                          <span className="ml-1">
+                            (Duration: {formatDistanceToNow(new Date(vehicle.entry_timestamp), { addSuffix: true })})
+                          </span>
+                        )}
                       </span>
-                      {vehicle.quality_score && (
-                        <Badge variant={getQualityBadgeVariant(vehicle.quality_score)}>
-                          Quality: {Math.round(vehicle.quality_score * 100)}%
-                        </Badge>
-                      )}
                     </div>
+                  )}
+
+                  {/* Damage Assessment */}
+                  {vehicle.damage_detected && (
+                    <Badge variant="destructive" className="mt-1">
+                      Damage Detected ({Math.round(vehicle.damage_confidence * 100)}% confidence)
+                    </Badge>
                   )}
 
                   {vehicle.last_seen && (
-                    <div className="text-xs text-gray-500">
+                    <div className="text-xs text-gray-500 mt-2">
                       Last seen: {format(new Date(vehicle.last_seen), 'MMM dd, yyyy HH:mm')}
                     </div>
                   )}

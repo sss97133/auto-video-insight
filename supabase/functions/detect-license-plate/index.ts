@@ -29,11 +29,14 @@ async function downloadImage(url: string): Promise<Uint8Array> {
 }
 
 async function detectVehicleDetails(imageBytes: Uint8Array) {
+  console.log('Starting vehicle detection analysis...');
+  
   // Detect text for license plate
   const textCommand = new DetectTextCommand({
     Image: { Bytes: imageBytes }
   });
   const textResponse = await rekognition.send(textCommand);
+  console.log('Text detection completed');
 
   // Get labels for vehicle measurements and type
   const labelsCommand = new DetectLabelsCommand({
@@ -41,6 +44,7 @@ async function detectVehicleDetails(imageBytes: Uint8Array) {
     MinConfidence: 80
   });
   const labelsResponse = await rekognition.send(labelsCommand);
+  console.log('Label detection completed');
 
   // Check for damage using content moderation
   const moderationCommand = new DetectModerationLabelsCommand({
@@ -48,69 +52,13 @@ async function detectVehicleDetails(imageBytes: Uint8Array) {
     MinConfidence: 60
   });
   const moderationResponse = await rekognition.send(moderationCommand);
+  console.log('Moderation check completed');
 
   return {
     textDetections: textResponse.TextDetections || [],
     labels: labelsResponse.Labels || [],
     moderationLabels: moderationResponse.ModerationLabels || []
   };
-}
-
-function extractVehicleMeasurements(labels: any[]) {
-  const vehicleLabel = labels.find(label => 
-    label.Name === 'Car' || 
-    label.Name === 'Automobile' || 
-    label.Name === 'Vehicle'
-  );
-
-  if (vehicleLabel && vehicleLabel.BoundingBox) {
-    const { Width, Height } = vehicleLabel.BoundingBox;
-    return {
-      width: Width,
-      height: Height,
-      aspect_ratio: Width / Height
-    };
-  }
-
-  return null;
-}
-
-function detectDamage(moderationLabels: any[]) {
-  const damageIndicators = moderationLabels.filter(label => 
-    label.Name.toLowerCase().includes('damage') ||
-    label.Name.toLowerCase().includes('broken') ||
-    label.Name.toLowerCase().includes('accident')
-  );
-
-  if (damageIndicators.length > 0) {
-    return {
-      damage_detected: true,
-      damage_confidence: Math.max(...damageIndicators.map(d => d.Confidence)) / 100,
-      damage_details: damageIndicators.map(d => ({
-        type: d.Name,
-        confidence: d.Confidence / 100
-      }))
-    };
-  }
-
-  return {
-    damage_detected: false,
-    damage_confidence: 0,
-    damage_details: []
-  };
-}
-
-function extractLicensePlate(textDetections: any[]) {
-  const potentialPlates = textDetections
-    .filter(text => text.Type === 'LINE')
-    .map(text => ({
-      text: text.DetectedText,
-      confidence: text.Confidence / 100,
-      boundingBox: text.Geometry.BoundingBox
-    }))
-    .sort((a, b) => b.confidence - a.confidence);
-
-  return potentialPlates[0] || null;
 }
 
 Deno.serve(async (req) => {
@@ -129,26 +77,41 @@ Deno.serve(async (req) => {
     console.log('Analysis completed, processing results...');
 
     // Extract license plate
-    const licensePlate = extractLicensePlate(analysis.textDetections);
+    const licensePlate = analysis.textDetections
+      .filter(text => text.Type === 'LINE')
+      .map(text => ({
+        text: text.DetectedText,
+        confidence: text.Confidence / 100
+      }))
+      .sort((a, b) => b.confidence - a.confidence)[0];
+
     if (!licensePlate) {
       throw new Error('No license plate detected in image');
     }
 
-    // Get measurements
-    const measurements = extractVehicleMeasurements(analysis.labels);
-    
-    // Check for damage
-    const damageAssessment = detectDamage(analysis.moderationLabels);
-
-    // Determine vehicle type and attributes
-    const vehicleLabels = analysis.labels.filter(label => 
-      ['Car', 'Truck', 'SUV', 'Van', 'Sedan', 'Coupe'].includes(label.Name)
+    // Get vehicle type and measurements
+    const vehicleLabel = analysis.labels.find(label => 
+      ['Car', 'Automobile', 'Vehicle', 'Transportation'].includes(label.Name)
     );
 
-    const vehicleType = vehicleLabels[0]?.Name.toLowerCase() || null;
-    const quality_score = licensePlate.confidence;
+    const measurements = vehicleLabel?.BoundingBox ? {
+      width: vehicleLabel.BoundingBox.Width,
+      height: vehicleLabel.BoundingBox.Height,
+      aspect_ratio: vehicleLabel.BoundingBox.Width / vehicleLabel.BoundingBox.Height
+    } : null;
 
-    // Get current timestamp
+    // Check for damage
+    const damageLabels = analysis.moderationLabels.filter(label => 
+      label.Name.toLowerCase().includes('damage') ||
+      label.Name.toLowerCase().includes('broken') ||
+      label.Name.toLowerCase().includes('accident')
+    );
+
+    const damageDetected = damageLabels.length > 0;
+    const damageConfidence = damageLabels.length > 0 
+      ? Math.max(...damageLabels.map(d => d.Confidence)) / 100 
+      : 0;
+
     const timestamp = new Date().toISOString();
 
     // Check if vehicle already exists
@@ -164,12 +127,13 @@ Deno.serve(async (req) => {
         .from('vehicles')
         .update({
           last_seen: timestamp,
-          quality_score,
-          damage_detected: damageAssessment.damage_detected,
-          damage_assessment: damageAssessment,
+          damage_detected: damageDetected,
+          damage_confidence: damageConfidence,
+          damage_assessment: damageLabels,
           measurements,
-          exit_timestamp: timestamp, // Update exit time on each detection
-          vehicle_type: vehicleType
+          exit_timestamp: timestamp,
+          vehicle_type: vehicleLabel?.Name.toLowerCase() || null,
+          image_url
         })
         .eq('id', existingVehicle.id);
 
@@ -190,10 +154,10 @@ Deno.serve(async (req) => {
       .insert({
         license_plate: licensePlate.text,
         confidence: licensePlate.confidence,
-        vehicle_type: vehicleType,
-        quality_score,
-        damage_detected: damageAssessment.damage_detected,
-        damage_assessment: damageAssessment,
+        vehicle_type: vehicleLabel?.Name.toLowerCase() || null,
+        damage_detected: damageDetected,
+        damage_confidence: damageConfidence,
+        damage_assessment: damageLabels,
         measurements,
         entry_timestamp: timestamp,
         exit_timestamp: timestamp,
@@ -205,31 +169,7 @@ Deno.serve(async (req) => {
 
     if (insertError) throw insertError;
 
-    // Create analytics event for new vehicle
-    await supabase.from('analytics').insert({
-      event_type: 'vehicle_detected',
-      camera_id,
-      vehicle_id: newVehicle.id,
-      event_data: {
-        license_plate: licensePlate.text,
-        damage_detected: damageAssessment.damage_detected,
-        vehicle_type: vehicleType
-      }
-    });
-
-    // If damage is detected, create an alert
-    if (damageAssessment.damage_detected) {
-      await supabase.from('alerts').insert({
-        vehicle_id: newVehicle.id,
-        camera_id,
-        alert_type: 'damage_detected',
-        event_type: 'suspicious_vehicle',
-        severity: damageAssessment.damage_confidence > 0.8 ? 'high' : 'medium',
-        message: `Vehicle damage detected on ${licensePlate.text}`,
-        confidence: damageAssessment.damage_confidence,
-        event_metadata: damageAssessment
-      });
-    }
+    console.log('Vehicle processed successfully:', newVehicle.id);
 
     return new Response(JSON.stringify({
       success: true,

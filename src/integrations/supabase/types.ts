@@ -278,6 +278,8 @@ export type Database = {
           damage_assessment: Json | null
           damage_confidence: number | null
           damage_detected: boolean | null
+          damage_location: string[] | null
+          damage_severity: string | null
           detected_at: string | null
           detected_attributes: Json | null
           entry_timestamp: string | null
@@ -293,6 +295,8 @@ export type Database = {
           model: string | null
           orientation: string | null
           quality_score: number | null
+          time_on_premises: unknown | null
+          vehicle_measurements: Json | null
           vehicle_type: string | null
           year: number | null
         }
@@ -303,6 +307,8 @@ export type Database = {
           damage_assessment?: Json | null
           damage_confidence?: number | null
           damage_detected?: boolean | null
+          damage_location?: string[] | null
+          damage_severity?: string | null
           detected_at?: string | null
           detected_attributes?: Json | null
           entry_timestamp?: string | null
@@ -318,6 +324,8 @@ export type Database = {
           model?: string | null
           orientation?: string | null
           quality_score?: number | null
+          time_on_premises?: unknown | null
+          vehicle_measurements?: Json | null
           vehicle_type?: string | null
           year?: number | null
         }
@@ -328,6 +336,8 @@ export type Database = {
           damage_assessment?: Json | null
           damage_confidence?: number | null
           damage_detected?: boolean | null
+          damage_location?: string[] | null
+          damage_severity?: string | null
           detected_at?: string | null
           detected_attributes?: Json | null
           entry_timestamp?: string | null
@@ -343,6 +353,8 @@ export type Database = {
           model?: string | null
           orientation?: string | null
           quality_score?: number | null
+          time_on_premises?: unknown | null
+          vehicle_measurements?: Json | null
           vehicle_type?: string | null
           year?: number | null
         }
