@@ -51,10 +51,10 @@ const VehicleImageUpload = () => {
 
       console.log('Starting license plate detection...');
 
-      // Process image with edge function
+      // Process image with edge function, sending only the URL as a string
       const { data, error: detectionError } = await supabase.functions
         .invoke('detect-license-plate', {
-          body: { image_url: urlData.publicUrl }
+          body: JSON.stringify({ image_url: urlData.publicUrl })
         });
 
       if (detectionError) {
