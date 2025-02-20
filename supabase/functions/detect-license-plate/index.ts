@@ -53,89 +53,107 @@ serve(async (req) => {
       throw new Error('AWS credentials not configured');
     }
 
-    console.log('Creating Rekognition client with IAM user nulab...');
-    const client = new RekognitionClient({
+    // Log AWS configuration (without exposing secrets)
+    console.log('AWS Configuration:', {
       region: "us-east-2",
-      credentials: {
-        accessKeyId,
-        secretAccessKey,
-      },
-    });
-    console.log('Rekognition client initialized successfully');
-
-    // Detect text in image
-    console.log('Creating DetectText command with image size:', imageBuffer.byteLength);
-    const detectTextCommand = new DetectTextCommand({
-      Image: {
-        Bytes: new Uint8Array(imageBuffer),
-      },
+      accessKeyIdPresent: !!accessKeyId,
+      secretAccessKeyPresent: !!secretAccessKey
     });
 
-    console.log('Sending DetectText request to Rekognition...');
-    const textResponse = await client.send(detectTextCommand);
-    console.log('Text detection response:', JSON.stringify(textResponse, null, 2));
+    try {
+      console.log('Creating Rekognition client with IAM user nulab...');
+      const client = new RekognitionClient({
+        region: "us-east-2",
+        credentials: {
+          accessKeyId,
+          secretAccessKey,
+        },
+      });
+      console.log('Rekognition client initialized successfully');
 
-    // Detect labels for vehicle type
-    console.log('Creating DetectLabels command...');
-    const detectLabelsCommand = new DetectLabelsCommand({
-      Image: {
-        Bytes: new Uint8Array(imageBuffer),
-      },
-      MaxLabels: 10,
-      MinConfidence: 70,
-    });
+      // Detect text in image
+      console.log('Creating DetectText command with image size:', imageBuffer.byteLength);
+      const detectTextCommand = new DetectTextCommand({
+        Image: {
+          Bytes: new Uint8Array(imageBuffer),
+        },
+      });
 
-    console.log('Sending DetectLabels request to Rekognition...');
-    const labelsResponse = await client.send(detectLabelsCommand);
-    console.log('Label detection response:', JSON.stringify(labelsResponse, null, 2));
+      console.log('Sending DetectText request to Rekognition...');
+      const textResponse = await client.send(detectTextCommand);
+      console.log('Text detection response:', JSON.stringify(textResponse, null, 2));
 
-    // Process text results
-    const detectedText = textResponse.TextDetections || [];
-    const licensePlate = detectedText.find(text => 
-      text.Type === 'LINE' && 
-      text.DetectedText && 
-      /^[A-Z0-9]{5,8}$/.test(text.DetectedText)
-    );
+      // Detect labels for vehicle type
+      console.log('Creating DetectLabels command...');
+      const detectLabelsCommand = new DetectLabelsCommand({
+        Image: {
+          Bytes: new Uint8Array(imageBuffer),
+        },
+        MaxLabels: 10,
+        MinConfidence: 70,
+      });
 
-    if (!licensePlate) {
-      throw new Error('No valid license plate detected in image');
+      console.log('Sending DetectLabels request to Rekognition...');
+      const labelsResponse = await client.send(detectLabelsCommand);
+      console.log('Label detection response:', JSON.stringify(labelsResponse, null, 2));
+
+      // Process text results
+      const detectedText = textResponse.TextDetections || [];
+      const licensePlate = detectedText.find(text => 
+        text.Type === 'LINE' && 
+        text.DetectedText && 
+        /^[A-Z0-9]{5,8}$/.test(text.DetectedText)
+      );
+
+      if (!licensePlate) {
+        throw new Error('No valid license plate detected in image');
+      }
+
+      // Find vehicle type from labels
+      const vehicleLabels = labelsResponse.Labels?.filter(label => 
+        ['Car', 'Automobile', 'Vehicle', 'Truck', 'Van', 'SUV', 'Pickup Truck'].includes(label.Name || '')
+      ) || [];
+      
+      const vehicleType = vehicleLabels.length > 0 ? vehicleLabels[0].Name : "Unknown";
+
+      // Construct response
+      const result = {
+        license_plate: licensePlate.DetectedText,
+        confidence: licensePlate.Confidence ? licensePlate.Confidence / 100 : 0,
+        vehicle_type: vehicleType,
+        vehicle_details: {
+          detected_text: detectedText.map(text => ({
+            text: text.DetectedText,
+            type: text.Type,
+            confidence: text.Confidence ? text.Confidence / 100 : 0,
+          })),
+          labels: labelsResponse.Labels?.map(label => ({
+            name: label.Name,
+            confidence: label.Confidence ? label.Confidence / 100 : 0,
+          }))
+        },
+        bounding_box: licensePlate.Geometry?.BoundingBox || null
+      };
+
+      console.log('Processing complete, returning result:', JSON.stringify(result, null, 2));
+
+      return new Response(JSON.stringify(result), {
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json',
+        },
+        status: 200,
+      });
+
+    } catch (rekognitionError) {
+      console.error('Rekognition error:', {
+        name: rekognitionError.name,
+        message: rekognitionError.message,
+        stack: rekognitionError.stack,
+        cause: rekognitionError.cause
+      });
+      throw rekognitionError;
     }
-
-    // Find vehicle type from labels
-    const vehicleLabels = labelsResponse.Labels?.filter(label => 
-      ['Car', 'Automobile', 'Vehicle', 'Truck', 'Van', 'SUV', 'Pickup Truck'].includes(label.Name || '')
-    ) || [];
-    
-    const vehicleType = vehicleLabels.length > 0 ? vehicleLabels[0].Name : "Unknown";
-
-    // Construct response
-    const result = {
-      license_plate: licensePlate.DetectedText,
-      confidence: licensePlate.Confidence ? licensePlate.Confidence / 100 : 0,
-      vehicle_type: vehicleType,
-      vehicle_details: {
-        detected_text: detectedText.map(text => ({
-          text: text.DetectedText,
-          type: text.Type,
-          confidence: text.Confidence ? text.Confidence / 100 : 0,
-        })),
-        labels: labelsResponse.Labels?.map(label => ({
-          name: label.Name,
-          confidence: label.Confidence ? label.Confidence / 100 : 0,
-        }))
-      },
-      bounding_box: licensePlate.Geometry?.BoundingBox || null
-    };
-
-    console.log('Processing complete, returning result:', JSON.stringify(result, null, 2));
-
-    return new Response(JSON.stringify(result), {
-      headers: {
-        ...corsHeaders,
-        'Content-Type': 'application/json',
-      },
-      status: 200,
-    });
 
   } catch (error) {
     console.error('Edge function error:', {
