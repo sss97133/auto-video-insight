@@ -9,32 +9,40 @@ const VehicleImageUpload = () => {
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) {
-      console.log('No file selected');
+      toast.error('No file selected');
       return;
     }
 
-    console.log('Starting upload for file:', file.name);
     const loadingToast = toast.loading('Processing image...');
 
     try {
-      console.log('Uploading to storage...');
+      // First create storage bucket if it doesn't exist
+      const { data: bucket } = await supabase.storage.getBucket('vehicle-images');
+      if (!bucket) {
+        const { error: bucketError } = await supabase.storage.createBucket('vehicle-images', {
+          public: true,
+          fileSizeLimit: 52428800 // 50MB
+        });
+        if (bucketError) {
+          throw new Error('Failed to create storage bucket');
+        }
+      }
+
+      // Upload image
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('vehicle-images')
         .upload(`${Date.now()}-${file.name}`, file);
 
       if (uploadError) {
-        console.error('Storage upload error:', uploadError);
         throw new Error('Failed to upload image to storage');
       }
 
+      // Get public URL
       const { data: { publicUrl } } = supabase.storage
         .from('vehicle-images')
         .getPublicUrl(uploadData.path);
 
-      console.log('Image uploaded successfully, URL:', publicUrl);
-      console.log('File path:', uploadData.path);
-
-      console.log('Calling detect-license-plate function...');
+      // Process image with edge function
       const { data: detectionData, error: detectionError } = await supabase.functions
         .invoke('detect-license-plate', {
           body: {
@@ -44,16 +52,14 @@ const VehicleImageUpload = () => {
         });
 
       if (detectionError) {
-        console.error('Detection error:', detectionError);
         throw new Error('Failed to process image');
       }
 
-      console.log('Detection completed:', detectionData);
       toast.dismiss(loadingToast);
       toast.success('Vehicle processed successfully');
 
     } catch (error) {
-      console.error('Error processing image:', error);
+      console.error('Error:', error);
       toast.dismiss(loadingToast);
       toast.error(error instanceof Error ? error.message : 'Failed to process image');
     }
