@@ -15,13 +15,13 @@ export class RekognitionService {
     }
     
     this.client = new RekognitionClient({
-      region: "us-east-1",
+      region: "us-east-2", // Updated to match your S3 bucket region
       credentials: {
         accessKeyId,
         secretAccessKey,
       },
     });
-    console.log('Rekognition client initialized');
+    console.log('Rekognition client initialized with region us-east-2');
   }
 
   async detectText(imageBytes: Uint8Array) {
