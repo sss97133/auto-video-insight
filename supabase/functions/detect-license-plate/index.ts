@@ -19,17 +19,48 @@ serve(async (req) => {
     console.log('Starting edge function...');
     
     // Validate request body
-    const { image_url } = await req.json();
+    let body;
+    try {
+      body = await req.json();
+    } catch (e) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid JSON body' }),
+        { 
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
+
+    const { image_url } = body;
     if (!image_url) {
-      throw new Error('No image URL provided');
+      return new Response(
+        JSON.stringify({ error: 'No image URL provided' }),
+        { 
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
     }
     console.log('Processing image URL:', image_url);
 
     // Download image with error handling
-    const imageResponse = await fetch(image_url);
-    if (!imageResponse.ok) {
-      throw new Error(`Failed to download image: ${imageResponse.status} ${imageResponse.statusText}`);
+    let imageResponse;
+    try {
+      imageResponse = await fetch(image_url);
+      if (!imageResponse.ok) {
+        throw new Error(`Failed to download image: ${imageResponse.status} ${imageResponse.statusText}`);
+      }
+    } catch (e) {
+      return new Response(
+        JSON.stringify({ error: `Failed to fetch image: ${e.message}` }),
+        { 
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
     }
+
     const imageBuffer = await imageResponse.arrayBuffer();
     const imageBytes = new Uint8Array(imageBuffer);
     console.log('Image downloaded successfully, size:', imageBytes.length);
@@ -38,7 +69,13 @@ serve(async (req) => {
     const accessKeyId = Deno.env.get('AWS_ACCESS_KEY_ID');
     const secretAccessKey = Deno.env.get('AWS_SECRET_ACCESS_KEY');
     if (!accessKeyId || !secretAccessKey) {
-      throw new Error('AWS credentials not configured');
+      return new Response(
+        JSON.stringify({ error: 'AWS credentials not configured' }),
+        { 
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
     }
 
     // Initialize AWS client
@@ -50,13 +87,24 @@ serve(async (req) => {
       region: "us-east-1"
     });
 
-    // Detect text (license plate) with error handling
+    // Detect text (license plate)
     console.log('Starting text detection...');
-    const textCommand = new DetectTextCommand({
-      Image: { Bytes: imageBytes }
-    });
-    
-    const textResponse = await rekognition.send(textCommand);
+    let textResponse;
+    try {
+      const textCommand = new DetectTextCommand({
+        Image: { Bytes: imageBytes }
+      });
+      textResponse = await rekognition.send(textCommand);
+    } catch (e) {
+      console.error('Text detection failed:', e);
+      return new Response(
+        JSON.stringify({ error: `Text detection failed: ${e.message}` }),
+        { 
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
     console.log('Text detection response:', JSON.stringify(textResponse, null, 2));
 
     if (!textResponse.TextDetections || textResponse.TextDetections.length === 0) {
@@ -69,14 +117,25 @@ serve(async (req) => {
       );
     }
 
-    // Get vehicle type and labels with error handling
+    // Detect labels
     console.log('Starting label detection...');
-    const labelsCommand = new DetectLabelsCommand({
-      Image: { Bytes: imageBytes },
-      MinConfidence: 80
-    });
-    
-    const labelsResponse = await rekognition.send(labelsCommand);
+    let labelsResponse;
+    try {
+      const labelsCommand = new DetectLabelsCommand({
+        Image: { Bytes: imageBytes },
+        MinConfidence: 80
+      });
+      labelsResponse = await rekognition.send(labelsCommand);
+    } catch (e) {
+      console.error('Label detection failed:', e);
+      return new Response(
+        JSON.stringify({ error: `Label detection failed: ${e.message}` }),
+        { 
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
     console.log('Label detection response:', JSON.stringify(labelsResponse, null, 2));
 
     // Process results
@@ -88,7 +147,6 @@ serve(async (req) => {
       }))
       .sort((a, b) => b.confidence - a.confidence)[0];
 
-    // Get vehicle type
     const vehicleLabel = labelsResponse.Labels?.find(label => 
       ['Car', 'Automobile', 'Vehicle', 'Transportation'].includes(label.Name || '')
     );
@@ -114,13 +172,11 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Error in detect-license-plate function:', error);
-    
-    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+    console.error('Unexpected error in detect-license-plate function:', error);
     return new Response(
       JSON.stringify({ 
-        error: errorMessage,
-        details: error instanceof Error ? error.stack : undefined
+        error: 'An unexpected error occurred',
+        details: error instanceof Error ? error.message : 'Unknown error'
       }),
       { 
         status: 500,
