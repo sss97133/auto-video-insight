@@ -8,7 +8,7 @@ import {
 } from "https://deno.land/x/aws_sdk@v3.32.0-1/client-rekognition/mod.ts";
 
 serve(async (req) => {
-  console.log('Request received:', {
+  console.log('Function started:', {
     method: req.method,
     url: req.url,
     headers: Object.fromEntries(req.headers.entries())
@@ -93,7 +93,7 @@ serve(async (req) => {
     const licensePlate = detectedText.find(text => 
       text.Type === 'LINE' && 
       text.DetectedText && 
-      text.DetectedText.match(/^[A-Z0-9]{5,8}$/)
+      /^[A-Z0-9]{5,8}$/.test(text.DetectedText)
     );
 
     if (!licensePlate) {
@@ -156,4 +156,3 @@ serve(async (req) => {
     });
   }
 });
-
