@@ -1,51 +1,55 @@
 
-import { RekognitionClient, DetectTextCommand, DetectLabelsCommand } from "npm:@aws-sdk/client-rekognition";
+import { RekognitionClient } from "https://deno.land/x/aws_sdk@v3.32.0-1/client-rekognition/mod.ts";
 
 export class RekognitionService {
   private client: RekognitionClient;
 
-  constructor(accessKeyId: string, secretAccessKey: string) {
+  constructor() {
     console.log('Initializing Rekognition client...');
     this.client = new RekognitionClient({
       region: "us-east-1",
       credentials: {
-        accessKeyId,
-        secretAccessKey
-      }
+        accessKeyId: Deno.env.get("AWS_ACCESS_KEY_ID") || "",
+        secretAccessKey: Deno.env.get("AWS_SECRET_ACCESS_KEY") || "",
+      },
     });
-    console.log('Rekognition client initialized successfully');
+    console.log('Rekognition client initialized');
   }
 
   async detectText(imageBytes: Uint8Array) {
-    console.log('Starting text detection...');
-    const command = new DetectTextCommand({
-      Image: { Bytes: imageBytes }
-    });
-
     try {
-      const result = await this.client.send(command);
-      console.log('Text detection completed successfully');
+      console.log('Calling Rekognition DetectText...');
+      const command = {
+        Image: {
+          Bytes: imageBytes,
+        },
+      };
+      const result = await this.client.detectText(command);
+      console.log('DetectText completed');
       return result;
     } catch (error) {
-      console.error('Error in text detection:', error);
+      console.error('DetectText error:', error);
       throw error;
     }
   }
 
   async detectLabels(imageBytes: Uint8Array) {
-    console.log('Starting label detection...');
-    const command = new DetectLabelsCommand({
-      Image: { Bytes: imageBytes },
-      MinConfidence: 80
-    });
-
     try {
-      const result = await this.client.send(command);
-      console.log('Label detection completed successfully');
+      console.log('Calling Rekognition DetectLabels...');
+      const command = {
+        Image: {
+          Bytes: imageBytes,
+        },
+        MaxLabels: 10,
+        MinConfidence: 70,
+      };
+      const result = await this.client.detectLabels(command);
+      console.log('DetectLabels completed');
       return result;
     } catch (error) {
-      console.error('Error in label detection:', error);
+      console.error('DetectLabels error:', error);
       throw error;
     }
   }
 }
+
