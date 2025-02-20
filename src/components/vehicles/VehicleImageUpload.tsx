@@ -52,7 +52,7 @@ const VehicleImageUpload = () => {
       }
 
       console.log('Image public URL:', urlData.publicUrl);
-      console.log('Starting license plate detection...');
+      console.log('Starting license plate and vehicle detection...');
 
       // Process image with edge function
       const { data: detectionData, error: detectionError } = await supabase.functions
@@ -80,6 +80,8 @@ const VehicleImageUpload = () => {
           confidence: detectionData.confidence,
           vehicle_type: detectionData.vehicle_type,
           image_url: urlData.publicUrl,
+          vehicle_details: detectionData.vehicle_details,
+          bounding_box: detectionData.bounding_box,
           last_seen: new Date().toISOString()
         }]);
 
@@ -89,7 +91,7 @@ const VehicleImageUpload = () => {
       }
 
       toast.dismiss(loadingToast);
-      toast.success('Vehicle processed and saved successfully');
+      toast.success(`Vehicle detected: ${detectionData.vehicle_type}`);
 
     } catch (error) {
       console.error('Process failed:', error);

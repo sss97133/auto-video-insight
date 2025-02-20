@@ -33,18 +33,28 @@ export async function processImage(imageUrl: string) {
     const licensePlate = textResult.TextDetections?.[0]?.DetectedText || '';
     const confidence = textResult.TextDetections?.[0]?.Confidence || 0;
     
-    // Filter vehicle-related labels
+    // Find the most confident vehicle label
     const vehicleLabels = labelsResult.Labels?.filter(label => 
-      ['Car', 'Automobile', 'Vehicle', 'Truck', 'Van', 'SUV', 'Pickup'].includes(label.Name)
-    ) || [];
+      ['Car', 'Automobile', 'Vehicle', 'Truck', 'Van', 'SUV', 'Pickup Truck'].includes(label.Name)
+    ).sort((a, b) => (b.Confidence || 0) - (a.Confidence || 0)) || [];
+    
     const vehicleType = vehicleLabels[0]?.Name || 'Unknown';
+    const vehicleBoundingBox = vehicleLabels[0]?.Instances?.[0]?.BoundingBox || null;
 
-    console.log('Processing complete:', { licensePlate, confidence, vehicleType });
+    console.log('Processing complete:', { 
+      licensePlate, 
+      confidence, 
+      vehicleType,
+      vehicleBoundingBox,
+      allLabels: labelsResult.Labels 
+    });
 
     return {
       license_plate: licensePlate,
       confidence: confidence,
       vehicle_type: vehicleType,
+      bounding_box: vehicleBoundingBox,
+      vehicle_details: labelsResult.Labels
     };
   } catch (error) {
     console.error('Image processing error:', error);
