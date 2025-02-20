@@ -18,10 +18,16 @@ export async function processImage(imageUrl: string) {
 
     console.log('Starting text detection...');
     const textResult = await rekognition.detectText(imageBuffer);
+    if (!textResult) {
+      throw new Error('Text detection returned no result');
+    }
     console.log('Text detection result:', textResult);
 
     console.log('Starting label detection...');
     const labelsResult = await rekognition.detectLabels(imageBuffer);
+    if (!labelsResult) {
+      throw new Error('Label detection returned no result');
+    }
     console.log('Label detection result:', labelsResult);
 
     // Extract license plate text (first detected text)
@@ -36,21 +42,17 @@ export async function processImage(imageUrl: string) {
     const vehicleType = vehicleLabels[0]?.Name || 'Unknown';
     const vehicleBoundingBox = vehicleLabels[0]?.Instances?.[0]?.BoundingBox || null;
 
-    console.log('Processing complete:', { 
-      licensePlate, 
-      confidence, 
-      vehicleType,
-      vehicleBoundingBox,
-      allLabels: labelsResult.Labels 
-    });
-
-    return {
+    const result = {
       license_plate: licensePlate,
       confidence: confidence,
       vehicle_type: vehicleType,
       bounding_box: vehicleBoundingBox,
       vehicle_details: labelsResult.Labels
     };
+
+    console.log('Processing complete:', result);
+    return result;
+
   } catch (error) {
     console.error('Image processing error:', {
       message: error.message,
@@ -58,6 +60,6 @@ export async function processImage(imageUrl: string) {
       name: error.name,
       cause: error.cause
     });
-    throw error;  // Re-throw to be handled by the main function
+    throw error;
   }
 }

@@ -4,7 +4,6 @@ import { processImage } from "./handlers/imageProcessor.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 serve(async (req) => {
-  // Add detailed request logging
   console.log('Request received:', {
     method: req.method,
     url: req.url,
@@ -13,29 +12,22 @@ serve(async (req) => {
 
   // Handle CORS
   if (req.method === 'OPTIONS') {
-    console.log('Handling CORS preflight request');
     return new Response('ok', { headers: corsHeaders });
   }
 
   try {
     // Parse and validate request
-    let body;
-    try {
-      body = await req.json();
-      console.log('Request body:', body);
-    } catch (error) {
-      console.error('Failed to parse request body:', error);
-      throw new Error('Invalid request body');
-    }
-    
-    const { image_url } = body;
-    
-    if (!image_url) {
-      console.error('No image URL provided');
-      throw new Error('No image URL provided');
+    if (!req.body) {
+      throw new Error('Request body is empty');
     }
 
-    console.log('Image URL received:', image_url);
+    const body = await req.json();
+    console.log('Request body:', body);
+    
+    const { image_url } = body;
+    if (!image_url) {
+      throw new Error('No image URL provided');
+    }
 
     // Process the image
     console.log('Starting image processing...');
@@ -49,19 +41,18 @@ serve(async (req) => {
       },
       status: 200,
     });
+
   } catch (error) {
-    // Enhanced error logging
-    console.error('Edge function error details:', {
+    console.error('Edge function error:', {
       message: error.message,
       stack: error.stack,
       name: error.name,
-      cause: error.cause,
+      cause: error.cause
     });
     
     return new Response(JSON.stringify({
       error: error.message || 'Internal server error',
-      stack: error.stack,
-      details: error.cause,
+      details: error.cause || error.stack
     }), {
       headers: {
         ...corsHeaders,
