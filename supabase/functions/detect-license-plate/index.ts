@@ -18,9 +18,15 @@ serve(async (req) => {
   }
 
   try {
-    // Log request details
-    const body = await req.json();
-    console.log('Request body:', body);
+    // Parse and validate request
+    let body;
+    try {
+      body = await req.json();
+      console.log('Request body:', body);
+    } catch (error) {
+      console.error('Failed to parse request body:', error);
+      throw new Error('Invalid request body');
+    }
     
     const { image_url } = body;
     
@@ -29,7 +35,7 @@ serve(async (req) => {
       throw new Error('No image URL provided');
     }
 
-    console.log('Image URL:', image_url);
+    console.log('Image URL received:', image_url);
 
     // Process the image
     console.log('Starting image processing...');
