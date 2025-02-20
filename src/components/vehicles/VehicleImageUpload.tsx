@@ -1,11 +1,25 @@
 
-import React from "react";
-import { Upload } from "lucide-react";
+import React, { useState } from "react";
+import { Upload, Check, Loader2 } from "lucide-react";
 import { Button } from "../ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { Card, CardContent } from "../ui/card";
+
+interface ProgressState {
+  upload: 'pending' | 'processing' | 'complete';
+  recognition: 'pending' | 'processing' | 'complete';
+  saving: 'pending' | 'processing' | 'complete';
+}
 
 const VehicleImageUpload = () => {
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [progress, setProgress] = useState<ProgressState>({
+    upload: 'pending',
+    recognition: 'pending',
+    saving: 'pending'
+  });
+
   const sanitizeFileName = (fileName: string) => {
     return fileName
       .replace(/[^a-zA-Z0-9.-]/g, '_')
@@ -20,7 +34,15 @@ const VehicleImageUpload = () => {
       return;
     }
 
-    const loadingToast = toast.loading('Processing image...');
+    // Reset states
+    setProgress({
+      upload: 'processing',
+      recognition: 'pending',
+      saving: 'pending'
+    });
+
+    // Preview selected image
+    setSelectedImage(URL.createObjectURL(file));
 
     try {
       // Sanitize and create filename
@@ -39,6 +61,7 @@ const VehicleImageUpload = () => {
         throw new Error(`Upload failed: ${uploadError.message}`);
       }
 
+      setProgress(prev => ({ ...prev, upload: 'complete', recognition: 'processing' }));
       console.log('Upload successful:', uploadData);
 
       // Get public URL for the uploaded file
@@ -70,6 +93,7 @@ const VehicleImageUpload = () => {
         throw new Error('No data received from detection service');
       }
 
+      setProgress(prev => ({ ...prev, recognition: 'complete', saving: 'processing' }));
       console.log('Detection completed successfully:', detectionData);
       
       // Insert vehicle data into database
@@ -90,33 +114,72 @@ const VehicleImageUpload = () => {
         throw new Error(`Failed to save vehicle data: ${insertError.message}`);
       }
 
-      toast.dismiss(loadingToast);
+      setProgress(prev => ({ ...prev, saving: 'complete' }));
       toast.success(`Vehicle detected: ${detectionData.vehicle_type}`);
 
     } catch (error) {
       console.error('Process failed:', error);
-      toast.dismiss(loadingToast);
       toast.error(error instanceof Error ? error.message : 'Failed to process image');
+      setProgress({
+        upload: 'pending',
+        recognition: 'pending',
+        saving: 'pending'
+      });
+      setSelectedImage(null);
     }
   };
 
+  const ProgressItem = ({ status, label }: { status: 'pending' | 'processing' | 'complete', label: string }) => (
+    <div className="flex items-center gap-2">
+      {status === 'complete' ? (
+        <Check className="h-5 w-5 text-green-500" />
+      ) : status === 'processing' ? (
+        <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
+      ) : (
+        <div className="h-5 w-5 rounded-full border-2 border-gray-200" />
+      )}
+      <span className={status === 'complete' ? 'text-green-500' : status === 'processing' ? 'text-blue-500' : 'text-gray-500'}>
+        {label}
+      </span>
+    </div>
+  );
+
   return (
-    <div className="relative">
-      <input
-        type="file"
-        accept="image/*"
-        onChange={handleImageUpload}
-        className="hidden"
-        id="image-upload"
-      />
-      <Button
-        variant="outline"
-        onClick={() => document.getElementById('image-upload')?.click()}
-        className="flex items-center gap-2"
-      >
-        <Upload size={16} />
-        Test with Image
-      </Button>
+    <div className="space-y-4">
+      <div className="relative">
+        <input
+          type="file"
+          accept="image/*"
+          onChange={handleImageUpload}
+          className="hidden"
+          id="image-upload"
+        />
+        <Button
+          variant="outline"
+          onClick={() => document.getElementById('image-upload')?.click()}
+          className="flex items-center gap-2"
+        >
+          <Upload size={16} />
+          Test with Image
+        </Button>
+      </div>
+
+      {selectedImage && (
+        <Card className="overflow-hidden">
+          <CardContent className="p-4 space-y-4">
+            <img 
+              src={selectedImage} 
+              alt="Selected vehicle" 
+              className="w-full h-48 object-cover rounded-md"
+            />
+            <div className="space-y-2">
+              <ProgressItem status={progress.upload} label="Uploading image" />
+              <ProgressItem status={progress.recognition} label="Processing with AWS Rekognition" />
+              <ProgressItem status={progress.saving} label="Saving results" />
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };
