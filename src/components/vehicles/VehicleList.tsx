@@ -9,6 +9,29 @@ import { toast } from "sonner";
 import { format, formatDistanceToNow } from "date-fns";
 import { Button } from "../ui/button";
 
+interface VehicleMeasurements {
+  aspect_ratio?: number;
+  width?: number;
+  height?: number;
+}
+
+interface Vehicle {
+  id: string;
+  license_plate: string;
+  confidence: number;
+  make?: string;
+  model?: string;
+  year?: string;
+  vehicle_type?: string;
+  measurements?: VehicleMeasurements;
+  damage_detected?: boolean;
+  damage_confidence?: number;
+  entry_timestamp?: string;
+  exit_timestamp?: string;
+  last_seen?: string;
+  image_url?: string;
+}
+
 const VehicleList = () => {
   const { data: vehicles, isLoading } = useQuery({
     queryKey: ['vehicles'],
@@ -106,7 +129,7 @@ const VehicleList = () => {
         <div>Loading vehicles...</div>
       ) : vehicles && vehicles.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {vehicles.map((vehicle) => (
+          {vehicles.map((vehicle: Vehicle) => (
             <Card key={vehicle.id} className="hover:shadow-lg transition-shadow">
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
@@ -131,7 +154,7 @@ const VehicleList = () => {
                       <PaintBucket className="w-4 h-4 text-gray-500" />
                       <span className="text-sm text-gray-600">
                         {vehicle.vehicle_type}
-                        {vehicle.measurements && (
+                        {vehicle.measurements && 'aspect_ratio' in vehicle.measurements && (
                           <span className="ml-1">
                             ({Math.round(vehicle.measurements.aspect_ratio * 100) / 100} ratio)
                           </span>
@@ -158,7 +181,7 @@ const VehicleList = () => {
                   {/* Damage Assessment */}
                   {vehicle.damage_detected && (
                     <Badge variant="destructive" className="mt-1">
-                      Damage Detected ({Math.round(vehicle.damage_confidence * 100)}% confidence)
+                      Damage Detected ({Math.round((vehicle.damage_confidence || 0) * 100)}% confidence)
                     </Badge>
                   )}
 

@@ -1,5 +1,5 @@
-
-import { RekognitionClient, DetectTextCommand, DetectLabelsCommand, DetectModerationLabelsCommand } from "@aws-sdk/client-rekognition";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { RekognitionClient, DetectTextCommand, DetectLabelsCommand, DetectModerationLabelsCommand } from "https://esm.sh/@aws-sdk/client-rekognition";
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
 
@@ -61,7 +61,7 @@ async function detectVehicleDetails(imageBytes: Uint8Array) {
   };
 }
 
-Deno.serve(async (req) => {
+serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
