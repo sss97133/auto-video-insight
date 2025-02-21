@@ -3,11 +3,14 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders } from "./utils/cors.ts";
 import { processImage } from "./handlers/imageProcessor.ts";
 
+interface RequestBody {
+  image_url: string;
+}
+
 serve(async (req) => {
   console.log('Function started:', {
     method: req.method,
-    url: req.url,
-    headers: Object.fromEntries(req.headers.entries())
+    url: req.url
   });
 
   // Handle CORS preflight
@@ -17,10 +20,12 @@ serve(async (req) => {
   }
 
   try {
-    // Parse request
-    const body = await req.json();
-    console.log('Request body:', body);
+    // Parse and validate request
+    if (req.method !== 'POST') {
+      throw new Error('Method not allowed');
+    }
 
+    const body = await req.json() as RequestBody;
     if (!body.image_url) {
       throw new Error('No image URL provided');
     }
@@ -42,18 +47,19 @@ serve(async (req) => {
       message: error.message,
       stack: error.stack,
       name: error.name,
-      cause: error?.cause
     });
     
+    const statusCode = error.message.includes('No valid license plate') ? 400 : 500;
+    
     return new Response(JSON.stringify({
-      error: error.message || 'Internal server error',
+      error: error.message,
       details: error.stack
     }), {
       headers: {
         ...corsHeaders,
         'Content-Type': 'application/json',
       },
-      status: error.message.includes('No valid license plate') ? 400 : 500,
+      status: statusCode,
     });
   }
 });

@@ -14,7 +14,7 @@ export class RekognitionService {
     const secretAccessKey = Deno.env.get("AWS_SECRET_ACCESS_KEY");
     
     if (!accessKeyId || !secretAccessKey) {
-      throw new Error('AWS credentials not configured');
+      throw new Error('AWS credentials not properly configured');
     }
 
     this.client = new RekognitionClient({
@@ -27,35 +27,45 @@ export class RekognitionService {
   }
 
   async detectText(imageBuffer: ArrayBuffer) {
-    console.log('Starting text detection...');
-    const command = new DetectTextCommand({
-      Image: {
-        Bytes: new Uint8Array(imageBuffer),
-      },
-    });
-    
-    const response = await this.client.send(command);
-    console.log('Text detection completed:', {
-      textCount: response.TextDetections?.length || 0
-    });
-    return response;
+    try {
+      console.log('Starting text detection...');
+      const command = new DetectTextCommand({
+        Image: {
+          Bytes: new Uint8Array(imageBuffer),
+        },
+      });
+      
+      const response = await this.client.send(command);
+      console.log('Text detection completed:', {
+        textCount: response.TextDetections?.length || 0
+      });
+      return response;
+    } catch (error) {
+      console.error('Error in detectText:', error);
+      throw new Error(`Text detection failed: ${error.message}`);
+    }
   }
 
   async detectLabels(imageBuffer: ArrayBuffer) {
-    console.log('Starting label detection...');
-    const command = new DetectLabelsCommand({
-      Image: {
-        Bytes: new Uint8Array(imageBuffer),
-      },
-      MaxLabels: 10,
-      MinConfidence: 70,
-    });
-    
-    const response = await this.client.send(command);
-    console.log('Label detection completed:', {
-      labelCount: response.Labels?.length || 0
-    });
-    return response;
+    try {
+      console.log('Starting label detection...');
+      const command = new DetectLabelsCommand({
+        Image: {
+          Bytes: new Uint8Array(imageBuffer),
+        },
+        MaxLabels: 10,
+        MinConfidence: 70,
+      });
+      
+      const response = await this.client.send(command);
+      console.log('Label detection completed:', {
+        labelCount: response.Labels?.length || 0
+      });
+      return response;
+    } catch (error) {
+      console.error('Error in detectLabels:', error);
+      throw new Error(`Label detection failed: ${error.message}`);
+    }
   }
 }
 
