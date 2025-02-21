@@ -20,9 +20,10 @@ const CameraVideo = ({ streamingUrl, isActive }: CameraVideoProps) => {
   const processingRef = useRef<boolean>(false);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [detectedLabels, setDetectedLabels] = useState<DetectedLabel[]>([]);
+  const frameProcessingInterval = useRef<number>();
 
   const captureAndAnalyzeFrame = async () => {
-    if (!videoRef.current || !canvasRef.current || !processingRef.current) return;
+    if (!videoRef.current || !canvasRef.current || !isActive) return;
 
     const canvas = canvasRef.current;
     const video = videoRef.current;
@@ -45,7 +46,6 @@ const CameraVideo = ({ streamingUrl, isActive }: CameraVideoProps) => {
     if (!blob) return;
 
     try {
-      // Call the detect-license-plate function (which also handles general object detection)
       const { data, error } = await supabase.functions.invoke('detect-license-plate', {
         body: {
           image: await blob.arrayBuffer(),
@@ -68,11 +68,23 @@ const CameraVideo = ({ streamingUrl, isActive }: CameraVideoProps) => {
     } catch (error) {
       console.error('Failed to analyze frame:', error);
     }
+  };
 
-    // Schedule next frame if still processing
-    if (processingRef.current) {
-      requestAnimationFrame(captureAndAnalyzeFrame);
+  const startFrameProcessing = () => {
+    if (!processingRef.current) {
+      processingRef.current = true;
+      // Process frames every 1 second
+      frameProcessingInterval.current = window.setInterval(captureAndAnalyzeFrame, 1000);
     }
+  };
+
+  const stopFrameProcessing = () => {
+    processingRef.current = false;
+    if (frameProcessingInterval.current) {
+      clearInterval(frameProcessingInterval.current);
+      frameProcessingInterval.current = undefined;
+    }
+    setDetectedLabels([]);
   };
 
   const initializeWebcam = async () => {
@@ -80,9 +92,6 @@ const CameraVideo = ({ streamingUrl, isActive }: CameraVideoProps) => {
       console.log("Video initialization skipped - missing ref");
       return;
     }
-
-    // Clear any existing stream first
-    stopWebcam();
 
     try {
       console.log("Requesting webcam access...");
@@ -97,18 +106,18 @@ const CameraVideo = ({ streamingUrl, isActive }: CameraVideoProps) => {
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         
+        // Start frame processing once video is playing
+        videoRef.current.onplaying = () => {
+          console.log("Video stream started, beginning frame processing");
+          startFrameProcessing();
+        };
+
         const playPromise = videoRef.current.play();
         if (playPromise !== undefined) {
-          playPromise
-            .then(() => {
-              console.log("Webcam stream started successfully");
-              processingRef.current = true;
-              captureAndAnalyzeFrame();
-            })
-            .catch(error => {
-              console.error("Webcam playback failed:", error);
-              toast.error("Failed to start webcam stream");
-            });
+          playPromise.catch(error => {
+            console.error("Webcam playback failed:", error);
+            toast.error("Failed to start webcam stream");
+          });
         }
       }
     } catch (error) {
@@ -128,7 +137,7 @@ const CameraVideo = ({ streamingUrl, isActive }: CameraVideoProps) => {
   };
 
   const stopWebcam = () => {
-    processingRef.current = false;
+    stopFrameProcessing();
     if (videoRef.current?.srcObject) {
       const stream = videoRef.current.srcObject as MediaStream;
       stream.getTracks().forEach(track => {
@@ -136,7 +145,6 @@ const CameraVideo = ({ streamingUrl, isActive }: CameraVideoProps) => {
         stream.removeTrack(track);
       });
       videoRef.current.srcObject = null;
-      setDetectedLabels([]);
       console.log("Webcam stream stopped and cleaned up");
     }
   };
