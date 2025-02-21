@@ -17,6 +17,7 @@ const CameraModal = ({ isOpen, onClose }: CameraModalProps) => {
   const [name, setName] = React.useState("");
   const [location, setLocation] = React.useState("");
   const [type, setType] = React.useState("ip");
+  const [streamingUrl, setStreamingUrl] = React.useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,7 +31,8 @@ const CameraModal = ({ isOpen, onClose }: CameraModalProps) => {
             location,
             type,
             status: 'active',
-            configuration: {}
+            configuration: {},
+            streaming_url: streamingUrl
           }
         ]);
 
@@ -41,6 +43,7 @@ const CameraModal = ({ isOpen, onClose }: CameraModalProps) => {
       setName("");
       setLocation("");
       setType("ip");
+      setStreamingUrl("");
     } catch (error) {
       toast.error("Failed to add camera");
       console.error("Error adding camera:", error);
@@ -86,6 +89,16 @@ const CameraModal = ({ isOpen, onClose }: CameraModalProps) => {
                 <SelectItem value="rtsp">RTSP Stream</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="streamingUrl">Streaming URL</Label>
+            <Input
+              id="streamingUrl"
+              value={streamingUrl}
+              onChange={(e) => setStreamingUrl(e.target.value)}
+              placeholder="Enter streaming URL (e.g., rtsp:// or http://)"
+              required
+            />
           </div>
           <div className="flex justify-end space-x-2 pt-4">
             <Button variant="outline" type="button" onClick={onClose}>
