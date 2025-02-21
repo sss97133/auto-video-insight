@@ -1,7 +1,27 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { VideoProcessorType } from "@/types/video-processor";
+
+export const deleteCamera = async (id: string) => {
+  console.log('Attempting to delete camera:', id);
+  try {
+    const { error } = await supabase
+      .from('cameras')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error deleting camera:', error);
+      throw error;
+    }
+
+    console.log('Camera deleted successfully');
+    toast.success('Camera removed successfully');
+  } catch (error) {
+    console.error('Failed to delete camera:', error);
+    toast.error('Failed to remove camera');
+  }
+};
 
 export const toggleCameraStatus = async (id: string, currentStatus: string) => {
   console.log('Attempting to toggle camera status:', { id, currentStatus });
@@ -163,4 +183,3 @@ export const updateCameraProcessor = async (id: string, processorType: VideoProc
     toast.error('Failed to update video processor');
   }
 };
-

@@ -2,7 +2,7 @@
 import React, { useEffect, useRef } from "react";
 import { Card } from "../ui/card";
 import { Button } from "../ui/button";
-import { Video, Power, PlayCircle, StopCircle, Share2, Settings } from "lucide-react";
+import { Video, Power, PlayCircle, StopCircle, Share2, Settings, Trash2 } from "lucide-react";
 import { 
   Select,
   SelectContent,
@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../ui/select";
-import { toggleCameraStatus, toggleRecording, shareRecording, updateCameraProcessor } from "@/utils/cameraOperations";
+import { toggleCameraStatus, toggleRecording, shareRecording, updateCameraProcessor, deleteCamera } from "@/utils/cameraOperations";
 import { VideoProcessorType } from "@/types/video-processor";
 import { toast } from "sonner";
 
@@ -58,6 +58,17 @@ const CameraCard = ({ camera }: CameraCardProps) => {
     } catch (error) {
       console.error("Error sharing recording:", error);
       toast.error("Failed to share recording");
+    }
+  };
+
+  const handleDelete = async () => {
+    if (window.confirm('Are you sure you want to remove this camera?')) {
+      try {
+        await deleteCamera(camera.id);
+      } catch (error) {
+        console.error("Error deleting camera:", error);
+        toast.error("Failed to delete camera");
+      }
     }
   };
 
@@ -130,6 +141,14 @@ const CameraCard = ({ camera }: CameraCardProps) => {
               className={camera.status === 'active' ? 'text-green-500 hover:text-green-600' : 'text-red-500 hover:text-red-600'}
             >
               <Power size={18} />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleDelete}
+              className="text-red-500 hover:text-red-600"
+            >
+              <Trash2 size={18} />
             </Button>
             <div className={`w-2 h-2 rounded-full ${camera.status === 'active' ? 'bg-green-500' : 'bg-red-500'}`}></div>
           </div>
