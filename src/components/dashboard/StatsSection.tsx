@@ -3,9 +3,18 @@ import React, { useEffect, useState } from "react";
 import { Card } from "../ui/card";
 import { Video, Cloud, Settings, Camera } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface StatsSectionProps {
   cameras: any[] | undefined;
+}
+
+interface RecordingMetadata {
+  metadata: {
+    size?: number;
+    duration?: number;
+    format?: string;
+  } | null;
 }
 
 const StatsSection = ({ cameras }: StatsSectionProps) => {
@@ -14,17 +23,21 @@ const StatsSection = ({ cameras }: StatsSectionProps) => {
   useEffect(() => {
     const fetchStorageUsage = async () => {
       try {
-        const { data: recordings } = await supabase
+        const { data: recordings, error } = await supabase
           .from('video_recordings')
           .select('metadata');
 
-        if (!recordings) {
+        if (error) {
+          throw error;
+        }
+
+        if (!recordings || recordings.length === 0) {
           console.log('No recordings found');
           return;
         }
 
-        // Calculate total size from metadata
-        const totalBytes = recordings.reduce((acc, recording) => {
+        // Calculate total size from metadata with proper type checking
+        const totalBytes = recordings.reduce((acc, recording: RecordingMetadata) => {
           const size = recording.metadata?.size || 0;
           return acc + size;
         }, 0);
@@ -44,6 +57,7 @@ const StatsSection = ({ cameras }: StatsSectionProps) => {
         setStorageUsed(size);
       } catch (error) {
         console.error('Error fetching storage usage:', error);
+        toast.error('Failed to fetch storage usage');
         setStorageUsed("Error");
       }
     };
