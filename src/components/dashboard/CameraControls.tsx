@@ -15,7 +15,7 @@ import { toggleCameraStatus, toggleRecording, shareRecording, updateCameraProces
 
 interface CameraControlsProps {
   cameraId: string;
-  status: string;
+  status: 'active' | 'inactive';
   isRecording: boolean;
   processorType: VideoProcessorType | 'none';
 }

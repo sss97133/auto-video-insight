@@ -3,9 +3,10 @@ import React from "react";
 import { Card } from "../ui/card";
 import CameraVideo from "./CameraVideo";
 import CameraControls from "./CameraControls";
+import { Camera } from "@/types/camera";
 
 interface CameraCardProps {
-  camera: any;
+  camera: Camera;
 }
 
 const CameraCard = ({ camera }: CameraCardProps) => {

@@ -1,8 +1,8 @@
-
 import React, { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { Camera } from "@/types/camera";
 import CameraModal from "./CameraModal";
 import AlertsDisplay from "./AlertsDisplay";
 import CameraGrid from "./dashboard/CameraGrid";
@@ -38,7 +38,7 @@ const Dashboard = () => {
   }, [queryClient]);
 
   // Fetch cameras data with error handling for non-clonable objects
-  const { data: cameras, isLoading } = useQuery({
+  const { data: cameras, isLoading } = useQuery<Camera[]>({
     queryKey: ['cameras'],
     queryFn: async () => {
       try {
@@ -53,12 +53,11 @@ const Dashboard = () => {
           throw error;
         }
 
-        // Ensure we're only returning plain objects that can be cloned
         return data?.map(camera => ({
           ...camera,
           configuration: camera.configuration || {},
-          created_at: camera.created_at ? new Date(camera.created_at).toISOString() : null,
-          updated_at: camera.updated_at ? new Date(camera.updated_at).toISOString() : null
+          created_at: camera.created_at ? new Date(camera.created_at).toISOString() : new Date().toISOString(),
+          updated_at: camera.updated_at ? new Date(camera.updated_at).toISOString() : new Date().toISOString()
         })) || [];
       } catch (error) {
         console.error('Error fetching cameras:', error);
@@ -112,4 +111,3 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
-
