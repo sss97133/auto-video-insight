@@ -1,3 +1,4 @@
+
 import React, { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -53,20 +54,32 @@ const Dashboard = () => {
           throw error;
         }
 
-        return data?.map(camera => ({
-          ...camera,
-          configuration: camera.configuration || {},
+        return (data || []).map(camera => ({
+          id: camera.id,
+          name: camera.name,
+          location: camera.location,
+          type: camera.type,
+          status: (camera.status === 'active' ? 'active' : 'inactive') as 'active' | 'inactive',
+          streaming_url: camera.streaming_url,
+          is_recording: Boolean(camera.is_recording),
+          configuration: {
+            processor_type: (camera.configuration?.processor_type || 'none') as 'aws-rekognition' | 'custom' | 'none',
+            updated_at: camera.configuration?.updated_at,
+            settings: {
+              frameRate: camera.configuration?.settings?.frameRate,
+              resolution: camera.configuration?.settings?.resolution,
+              detectionConfidence: camera.configuration?.settings?.detectionConfidence
+            }
+          },
           created_at: camera.created_at ? new Date(camera.created_at).toISOString() : new Date().toISOString(),
           updated_at: camera.updated_at ? new Date(camera.updated_at).toISOString() : new Date().toISOString()
-        })) || [];
+        }));
       } catch (error) {
         console.error('Error fetching cameras:', error);
         toast.error('Failed to load cameras');
         throw error;
       }
-    },
-    retry: 1,
-    staleTime: 1000 * 60, // 1 minute
+    }
   });
 
   return (
