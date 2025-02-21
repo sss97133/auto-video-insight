@@ -28,12 +28,16 @@ export const useAddCamera = ({ onSuccess }: UseAddCameraParams = {}) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    console.log("Form submission started with:", { name, location, type, streamingUrl });
+
     if (!name.trim() || !location.trim()) {
+      console.log("Validation failed: missing name or location");
       toast.error("Please fill in all required fields");
       return;
     }
 
     if (type !== 'rtmp' && !validateStreamingUrl(streamingUrl)) {
+      console.log("Validation failed: invalid streaming URL");
       toast.error("Please enter a valid streaming URL");
       return;
     }
@@ -41,26 +45,34 @@ export const useAddCamera = ({ onSuccess }: UseAddCameraParams = {}) => {
     setIsSubmitting(true);
     
     try {
-      const { error } = await supabase
+      const cameraData = {
+        name: name.trim(),
+        location: location.trim(),
+        type,
+        status: 'inactive',
+        configuration: {
+          stream_key: streamKey,
+          rtmp_url: import.meta.env.VITE_RTMP_SERVER_URL || "rtmp://your-rtmp-server-url/live"
+        },
+        streaming_url: type === 'rtmp' 
+          ? `${import.meta.env.VITE_RTMP_SERVER_URL || "rtmp://your-rtmp-server-url/live"}/${streamKey}` 
+          : streamingUrl
+      };
+
+      console.log("Attempting to insert camera with data:", cameraData);
+
+      const { error, data } = await supabase
         .from('cameras')
-        .insert([
-          { 
-            name: name.trim(),
-            location: location.trim(),
-            type,
-            status: 'inactive',
-            configuration: {
-              stream_key: streamKey,
-              rtmp_url: import.meta.env.VITE_RTMP_SERVER_URL || "rtmp://your-rtmp-server-url/live"
-            },
-            streaming_url: type === 'rtmp' 
-              ? `${import.meta.env.VITE_RTMP_SERVER_URL || "rtmp://your-rtmp-server-url/live"}/${streamKey}` 
-              : streamingUrl
-          }
-        ]);
+        .insert([cameraData])
+        .select()
+        .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error("Supabase error:", error);
+        throw error;
+      }
 
+      console.log("Camera added successfully:", data);
       toast.success("Camera added successfully");
       onSuccess?.();
       setName("");
