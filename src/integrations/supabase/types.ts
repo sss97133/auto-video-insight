@@ -229,6 +229,68 @@ export type Database = {
         }
         Relationships: []
       }
+      face_collections: {
+        Row: {
+          aws_collection_id: string
+          created_at: string | null
+          description: string | null
+          id: string
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          aws_collection_id: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          aws_collection_id?: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      face_records: {
+        Row: {
+          collection_id: string
+          created_at: string | null
+          external_image_id: string | null
+          face_id: string
+          id: string
+          metadata: Json | null
+        }
+        Insert: {
+          collection_id: string
+          created_at?: string | null
+          external_image_id?: string | null
+          face_id: string
+          id?: string
+          metadata?: Json | null
+        }
+        Update: {
+          collection_id?: string
+          created_at?: string | null
+          external_image_id?: string | null
+          face_id?: string
+          id?: string
+          metadata?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "face_records_collection_id_fkey"
+            columns: ["collection_id"]
+            isOneToOne: false
+            referencedRelation: "face_collections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       shared_videos: {
         Row: {
           created_at: string | null
@@ -359,6 +421,51 @@ export type Database = {
           year?: number | null
         }
         Relationships: []
+      }
+      video_analysis: {
+        Row: {
+          camera_id: string
+          created_at: string | null
+          faces: Json | null
+          frame_timestamp: string
+          id: string
+          labels: Json | null
+          objects: Json | null
+        }
+        Insert: {
+          camera_id: string
+          created_at?: string | null
+          faces?: Json | null
+          frame_timestamp: string
+          id?: string
+          labels?: Json | null
+          objects?: Json | null
+        }
+        Update: {
+          camera_id?: string
+          created_at?: string | null
+          faces?: Json | null
+          frame_timestamp?: string
+          id?: string
+          labels?: Json | null
+          objects?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "valid_camera"
+            columns: ["camera_id"]
+            isOneToOne: false
+            referencedRelation: "cameras"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "video_analysis_camera_id_fkey"
+            columns: ["camera_id"]
+            isOneToOne: false
+            referencedRelation: "cameras"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       video_recordings: {
         Row: {
