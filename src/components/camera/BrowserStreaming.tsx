@@ -5,13 +5,31 @@ import { useMediaDevices } from "@/hooks/useMediaDevices";
 import { useStreamingControls } from "@/hooks/useStreamingControls";
 import DeviceSelectors from "./DeviceSelectors";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 interface BrowserStreamingProps {
   rtmpServerUrl: string;
   streamKey: string;
+  name: string;
+  setName: (name: string) => void;
+  location: string;
+  setLocation: (location: string) => void;
+  onSubmit: (e: React.FormEvent) => Promise<void>;
+  isSubmitting: boolean;
+  onClose: () => void;
 }
 
-const BrowserStreaming = ({ rtmpServerUrl, streamKey }: BrowserStreamingProps) => {
+const BrowserStreaming = ({
+  rtmpServerUrl,
+  streamKey,
+  name,
+  setName,
+  location,
+  setLocation,
+  onSubmit,
+  isSubmitting,
+  onClose,
+}: BrowserStreamingProps) => {
   const {
     devices,
     selectedDevices,
@@ -20,7 +38,7 @@ const BrowserStreaming = ({ rtmpServerUrl, streamKey }: BrowserStreamingProps) =
     mediaStreamRef,
   } = useMediaDevices();
 
-  const { isStreaming, startStreaming, stopStreaming } = useStreamingControls({
+  const { isConnectionTested, isConnecting, testConnection } = useStreamingControls({
     rtmpServerUrl,
     streamKey,
   });
@@ -60,7 +78,7 @@ const BrowserStreaming = ({ rtmpServerUrl, streamKey }: BrowserStreamingProps) =
   };
 
   return (
-    <div className="space-y-4">
+    <form onSubmit={onSubmit} className="space-y-4">
       <DeviceSelectors
         devices={devices}
         selectedDevices={selectedDevices}
@@ -77,15 +95,32 @@ const BrowserStreaming = ({ rtmpServerUrl, streamKey }: BrowserStreamingProps) =
         />
       </div>
 
-      <div className="flex justify-end space-x-2">
-        <Button
-          variant={isStreaming ? "destructive" : "default"}
-          onClick={isStreaming ? stopStreaming : startStreaming}
-        >
-          {isStreaming ? "Stop Streaming" : "Start Streaming"}
-        </Button>
+      <div className="grid gap-4">
+        {!isConnectionTested ? (
+          <Button
+            type="button"
+            onClick={testConnection}
+            disabled={isConnecting}
+            className={cn(
+              "w-full transition-colors",
+              isConnecting && "animate-pulse"
+            )}
+          >
+            {isConnecting ? "Testing Connection..." : "Test Connection"}
+          </Button>
+        ) : (
+          <>
+            <div className="flex items-center justify-center gap-2 p-2 bg-green-100 text-green-700 rounded-md">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+              Connection established successfully
+            </div>
+            <Button type="submit" disabled={isSubmitting} className="w-full">
+              {isSubmitting ? "Adding Camera..." : "Add Camera"}
+            </Button>
+          </>
+        )}
       </div>
-    </div>
+    </form>
   );
 };
 

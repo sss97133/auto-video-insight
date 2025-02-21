@@ -8,27 +8,34 @@ interface UseStreamingControlsProps {
 }
 
 export const useStreamingControls = ({ rtmpServerUrl, streamKey }: UseStreamingControlsProps) => {
-  const [isStreaming, setIsStreaming] = useState(false);
+  const [isConnectionTested, setIsConnectionTested] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
 
-  const startStreaming = async () => {
+  const testConnection = async () => {
     try {
-      setIsStreaming(true);
-      toast.success("Streaming started! (Demo only)");
-      console.log("Streaming to:", `${rtmpServerUrl}/${streamKey}`);
+      setIsConnecting(true);
+      // Simulate connection test with a delay
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      setIsConnectionTested(true);
+      toast.success("Connection test successful!");
+      console.log("Test connection to:", `${rtmpServerUrl}/${streamKey}`);
     } catch (error) {
-      console.error("Error starting stream:", error);
-      toast.error("Failed to start streaming");
+      console.error("Error testing connection:", error);
+      toast.error("Failed to test connection");
+      setIsConnectionTested(false);
+    } finally {
+      setIsConnecting(false);
     }
   };
 
-  const stopStreaming = () => {
-    setIsStreaming(false);
-    toast.success("Streaming stopped");
+  const resetConnection = () => {
+    setIsConnectionTested(false);
   };
 
   return {
-    isStreaming,
-    startStreaming,
-    stopStreaming,
+    isConnectionTested,
+    isConnecting,
+    testConnection,
+    resetConnection,
   };
 };
