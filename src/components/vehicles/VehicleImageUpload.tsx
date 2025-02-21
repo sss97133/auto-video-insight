@@ -51,7 +51,13 @@ const VehicleImageUpload = () => {
       const sanitizedName = sanitizeFileName(file.name);
       const fileName = `${Date.now()}-${sanitizedName}`;
       
-      console.log('Starting upload for file:', fileName);
+      console.log('Starting upload for file:', {
+        originalName: file.name,
+        sanitizedName,
+        fileName,
+        size: file.size,
+        type: file.type
+      });
 
       // Upload image to Supabase Storage
       const { data: uploadData, error: uploadError } = await supabase.storage
@@ -59,13 +65,21 @@ const VehicleImageUpload = () => {
         .upload(fileName, file);
 
       if (uploadError) {
-        console.error('Upload error:', uploadError);
+        console.error('Upload error:', {
+          error: uploadError,
+          message: uploadError.message,
+          details: uploadError.details,
+          hint: uploadError.hint
+        });
         setProgress(prev => ({ ...prev, upload: 'error' }));
         throw new Error(`Upload failed: ${uploadError.message}`);
       }
 
       setProgress(prev => ({ ...prev, upload: 'complete', recognition: 'processing' }));
-      console.log('Upload successful:', uploadData);
+      console.log('Upload successful:', {
+        path: uploadData?.path,
+        fullPath: uploadData?.fullPath,
+      });
 
       // Get public URL for the uploaded file
       const { data: urlData } = supabase.storage
@@ -86,23 +100,34 @@ const VehicleImageUpload = () => {
         body: { image_url: urlData.publicUrl }
       });
 
+      // Log the full response for debugging
+      console.log('Edge function response:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: response.error,
+        data: response.data,
+      });
+
       // Check if the response contains an error
       if (response.error) {
-        console.error('Edge function error:', response.error);
+        console.error('Edge function error:', {
+          error: response.error,
+          message: response.error.message,
+          details: response.error.details || 'No details provided'
+        });
         setProgress(prev => ({ ...prev, recognition: 'error' }));
-        setError(`Detection failed: ${response.error.message || 'Unknown error'}`);
         throw new Error(`Detection failed: ${response.error.message || 'Unknown error'}`);
       }
 
       const detectionData = response.data;
       if (!detectionData) {
-        console.error('No detection data received');
+        console.error('No detection data received from edge function');
         setProgress(prev => ({ ...prev, recognition: 'error' }));
         throw new Error('No data received from detection service');
       }
 
+      console.log('Detection data:', detectionData);
       setProgress(prev => ({ ...prev, recognition: 'complete', saving: 'processing' }));
-      console.log('Detection completed successfully:', detectionData);
       
       // Insert vehicle data into database
       const { error: insertError } = await supabase
@@ -118,7 +143,12 @@ const VehicleImageUpload = () => {
         }]);
 
       if (insertError) {
-        console.error('Database insert error:', insertError);
+        console.error('Database insert error:', {
+          error: insertError,
+          message: insertError.message,
+          details: insertError.details,
+          hint: insertError.hint
+        });
         setProgress(prev => ({ ...prev, saving: 'error' }));
         throw new Error(`Failed to save vehicle data: ${insertError.message}`);
       }
@@ -202,3 +232,4 @@ const VehicleImageUpload = () => {
 };
 
 export default VehicleImageUpload;
+

@@ -16,6 +16,7 @@ serve(async (req) => {
 
   // Handle CORS
   if (req.method === 'OPTIONS') {
+    console.log('Handling CORS preflight request');
     return new Response('ok', { headers: corsHeaders });
   }
 
@@ -45,7 +46,11 @@ serve(async (req) => {
         throw new Error(`HTTP ${imageResponse.status}: ${imageResponse.statusText}`);
       }
     } catch (error) {
-      console.error('Image download failed:', error);
+      console.error('Image download failed:', {
+        error,
+        message: error.message,
+        url: image_url
+      });
       throw new Error(`Failed to download image: ${error.message}`);
     }
 
@@ -60,7 +65,10 @@ serve(async (req) => {
     const secretAccessKey = Deno.env.get("AWS_SECRET_ACCESS_KEY");
     
     if (!accessKeyId || !secretAccessKey) {
-      console.error('AWS credentials missing');
+      console.error('AWS credentials missing:', {
+        hasAccessKey: !!accessKeyId,
+        hasSecretKey: !!secretAccessKey
+      });
       throw new Error('AWS credentials not configured');
     }
 
@@ -85,7 +93,12 @@ serve(async (req) => {
       textResponse = await client.send(detectTextCommand);
       console.log('Text detection response:', JSON.stringify(textResponse, null, 2));
     } catch (error) {
-      console.error('Text detection failed:', error);
+      console.error('Text detection failed:', {
+        error,
+        message: error.message,
+        code: error.code,
+        requestId: error.$metadata?.requestId
+      });
       throw new Error(`Text detection failed: ${error.message}`);
     }
 
@@ -103,12 +116,25 @@ serve(async (req) => {
       labelsResponse = await client.send(detectLabelsCommand);
       console.log('Label detection response:', JSON.stringify(labelsResponse, null, 2));
     } catch (error) {
-      console.error('Label detection failed:', error);
+      console.error('Label detection failed:', {
+        error,
+        message: error.message,
+        code: error.code,
+        requestId: error.$metadata?.requestId
+      });
       throw new Error(`Label detection failed: ${error.message}`);
     }
 
     // Process text results
     const detectedText = textResponse.TextDetections || [];
+    console.log('Processing detected text:', 
+      detectedText.map(t => ({
+        text: t.DetectedText,
+        type: t.Type,
+        confidence: t.Confidence
+      }))
+    );
+
     const licensePlate = detectedText.find(text => 
       text.Type === 'LINE' && 
       text.DetectedText && 
@@ -116,13 +142,7 @@ serve(async (req) => {
     );
 
     if (!licensePlate) {
-      console.log('No valid license plate found in:', 
-        detectedText.map(t => ({
-          text: t.DetectedText,
-          type: t.Type,
-          confidence: t.Confidence
-        }))
-      );
+      console.log('No valid license plate found in detected text');
       throw new Error('No valid license plate detected in image');
     }
 
@@ -131,14 +151,12 @@ serve(async (req) => {
       ['Car', 'Automobile', 'Vehicle', 'Truck', 'Van', 'SUV', 'Pickup Truck'].includes(label.Name || '')
     ) || [];
     
-    if (vehicleLabels.length === 0) {
-      console.log('No vehicle labels found in:', 
-        labelsResponse.Labels?.map(l => ({
-          name: l.Name,
-          confidence: l.Confidence
-        }))
-      );
-    }
+    console.log('Found vehicle labels:', 
+      vehicleLabels.map(l => ({
+        name: l.Name,
+        confidence: l.Confidence
+      }))
+    );
     
     const vehicleType = vehicleLabels.length > 0 ? vehicleLabels[0].Name : "Unknown";
 
@@ -191,3 +209,4 @@ serve(async (req) => {
     });
   }
 });
+
