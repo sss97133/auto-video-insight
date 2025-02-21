@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
 import { Tabs, TabsContent, TabsTrigger, TabsList } from "./ui/tabs";
 import StreamingSoftwareForm from "./camera/StreamingSoftwareForm";
 import DirectUrlForm from "./camera/DirectUrlForm";
+import BrowserStreaming from "./camera/BrowserStreaming";
 import { useAddCamera } from "@/hooks/useAddCamera";
 
 interface CameraModalProps {
@@ -36,12 +37,20 @@ const CameraModal = ({ isOpen, onClose }: CameraModalProps) => {
         <DialogHeader>
           <DialogTitle>Add New Camera</DialogTitle>
         </DialogHeader>
-        <Tabs defaultValue="software" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="software">Streaming Software</TabsTrigger>
+        <Tabs defaultValue="browser" className="w-full">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="browser">Browser</TabsTrigger>
+            <TabsTrigger value="software">Software</TabsTrigger>
             <TabsTrigger value="direct">Direct URL</TabsTrigger>
           </TabsList>
           
+          <TabsContent value="browser">
+            <BrowserStreaming
+              rtmpServerUrl={rtmpServerUrl}
+              streamKey={streamKey}
+            />
+          </TabsContent>
+
           <TabsContent value="software">
             <StreamingSoftwareForm
               name={name}
