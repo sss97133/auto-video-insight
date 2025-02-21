@@ -54,26 +54,32 @@ const Dashboard = () => {
           throw error;
         }
 
-        return (data || []).map(camera => ({
-          id: camera.id,
-          name: camera.name,
-          location: camera.location,
-          type: camera.type,
-          status: (camera.status === 'active' ? 'active' : 'inactive') as 'active' | 'inactive',
-          streaming_url: camera.streaming_url,
-          is_recording: Boolean(camera.is_recording),
-          configuration: {
-            processor_type: (camera.configuration?.processor_type || 'none') as 'aws-rekognition' | 'custom' | 'none',
-            updated_at: camera.configuration?.updated_at,
-            settings: {
-              frameRate: camera.configuration?.settings?.frameRate,
-              resolution: camera.configuration?.settings?.resolution,
-              detectionConfidence: camera.configuration?.settings?.detectionConfidence
-            }
-          },
-          created_at: camera.created_at ? new Date(camera.created_at).toISOString() : new Date().toISOString(),
-          updated_at: camera.updated_at ? new Date(camera.updated_at).toISOString() : new Date().toISOString()
-        }));
+        return (data || []).map(camera => {
+          // Safely access configuration object with type checking
+          const config = camera.configuration as Record<string, any> | null;
+          const settings = config?.settings as Record<string, any> | undefined;
+
+          return {
+            id: camera.id,
+            name: camera.name,
+            location: camera.location,
+            type: camera.type,
+            status: (camera.status === 'active' ? 'active' : 'inactive') as 'active' | 'inactive',
+            streaming_url: camera.streaming_url,
+            is_recording: Boolean(camera.is_recording),
+            configuration: {
+              processor_type: ((config?.processor_type as string) || 'none') as 'aws-rekognition' | 'custom' | 'none',
+              updated_at: config?.updated_at as string | undefined,
+              settings: {
+                frameRate: settings?.frameRate as number | undefined,
+                resolution: settings?.resolution as string | undefined,
+                detectionConfidence: settings?.detectionConfidence as number | undefined
+              }
+            },
+            created_at: camera.created_at ? new Date(camera.created_at).toISOString() : new Date().toISOString(),
+            updated_at: camera.updated_at ? new Date(camera.updated_at).toISOString() : new Date().toISOString()
+          };
+        });
       } catch (error) {
         console.error('Error fetching cameras:', error);
         toast.error('Failed to load cameras');
