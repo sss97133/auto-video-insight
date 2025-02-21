@@ -1,13 +1,56 @@
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Card } from "../ui/card";
 import { Video, Cloud, Settings, Camera } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 interface StatsSectionProps {
   cameras: any[] | undefined;
 }
 
 const StatsSection = ({ cameras }: StatsSectionProps) => {
+  const [storageUsed, setStorageUsed] = useState<string>("0 MB");
+
+  useEffect(() => {
+    const fetchStorageUsage = async () => {
+      try {
+        const { data: recordings } = await supabase
+          .from('video_recordings')
+          .select('metadata');
+
+        if (!recordings) {
+          console.log('No recordings found');
+          return;
+        }
+
+        // Calculate total size from metadata
+        const totalBytes = recordings.reduce((acc, recording) => {
+          const size = recording.metadata?.size || 0;
+          return acc + size;
+        }, 0);
+
+        // Convert bytes to human readable format
+        let size: string;
+        if (totalBytes < 1024) {
+          size = `${totalBytes} B`;
+        } else if (totalBytes < 1024 * 1024) {
+          size = `${(totalBytes / 1024).toFixed(1)} KB`;
+        } else if (totalBytes < 1024 * 1024 * 1024) {
+          size = `${(totalBytes / (1024 * 1024)).toFixed(1)} MB`;
+        } else {
+          size = `${(totalBytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+        }
+
+        setStorageUsed(size);
+      } catch (error) {
+        console.error('Error fetching storage usage:', error);
+        setStorageUsed("Error");
+      }
+    };
+
+    fetchStorageUsage();
+  }, []);
+
   return (
     <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 fade-in">
       <Card className="glass-card p-6">
@@ -29,7 +72,7 @@ const StatsSection = ({ cameras }: StatsSectionProps) => {
           </div>
           <div>
             <p className="text-sm text-gray-600">Storage Used</p>
-            <h3 className="text-2xl font-bold">1.2 TB</h3>
+            <h3 className="text-2xl font-bold">{storageUsed}</h3>
           </div>
         </div>
       </Card>
@@ -62,4 +105,3 @@ const StatsSection = ({ cameras }: StatsSectionProps) => {
 };
 
 export default StatsSection;
-
