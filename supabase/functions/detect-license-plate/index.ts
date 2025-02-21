@@ -8,7 +8,11 @@ import {
 } from "https://deno.land/x/aws_sdk@v3.32.0-1/client-rekognition/mod.ts";
 
 serve(async (req) => {
-  console.log('Function started with method:', req.method);
+  console.log('Function started:', {
+    method: req.method,
+    url: req.url,
+    headers: Object.fromEntries(req.headers.entries())
+  });
 
   // Handle CORS
   if (req.method === 'OPTIONS') {
@@ -17,42 +21,50 @@ serve(async (req) => {
 
   try {
     // Parse and validate request
-    if (!req.body) {
-      console.error('Empty request body');
-      throw new Error('Request body is empty');
+    let body;
+    try {
+      body = await req.json();
+      console.log('Request body:', body);
+    } catch (error) {
+      console.error('Failed to parse request body:', error);
+      throw new Error('Invalid request body: ' + error.message);
     }
-
-    const body = await req.json();
-    console.log('Request body received:', body);
     
     const { image_url } = body;
     if (!image_url) {
-      console.error('No image URL in request body');
+      console.error('No image URL in request');
       throw new Error('No image URL provided');
     }
 
     // Download image from URL
-    console.log('Attempting to download image from:', image_url);
-    const imageResponse = await fetch(image_url);
-    if (!imageResponse.ok) {
-      console.error('Image download failed:', imageResponse.status, imageResponse.statusText);
-      throw new Error(`Failed to download image: ${imageResponse.statusText}`);
+    console.log('Downloading image from:', image_url);
+    let imageResponse;
+    try {
+      imageResponse = await fetch(image_url);
+      if (!imageResponse.ok) {
+        throw new Error(`HTTP ${imageResponse.status}: ${imageResponse.statusText}`);
+      }
+    } catch (error) {
+      console.error('Image download failed:', error);
+      throw new Error(`Failed to download image: ${error.message}`);
     }
 
     const imageBuffer = await imageResponse.arrayBuffer();
-    console.log('Image downloaded successfully, size:', imageBuffer.byteLength);
+    console.log('Image downloaded successfully:', {
+      size: imageBuffer.byteLength,
+      type: imageResponse.headers.get('content-type')
+    });
 
     // Initialize AWS Rekognition client
-    console.log('Checking AWS credentials...');
     const accessKeyId = Deno.env.get("AWS_ACCESS_KEY_ID");
     const secretAccessKey = Deno.env.get("AWS_SECRET_ACCESS_KEY");
     
     if (!accessKeyId || !secretAccessKey) {
-      console.error('AWS credentials missing from environment');
+      console.error('AWS credentials missing');
       throw new Error('AWS credentials not configured');
     }
 
-    console.log('AWS credentials found, initializing Rekognition client...');
+    console.log('Initializing Rekognition client...');
     const client = new RekognitionClient({
       region: "us-east-2",
       credentials: {
@@ -60,23 +72,27 @@ serve(async (req) => {
         secretAccessKey,
       },
     });
-    console.log('Rekognition client initialized');
 
+    // Detect text in image
+    let textResponse;
     try {
-      // Detect text in image
-      console.log('Creating DetectText command...');
+      console.log('Sending DetectText request...');
       const detectTextCommand = new DetectTextCommand({
         Image: {
           Bytes: new Uint8Array(imageBuffer),
         },
       });
-
-      console.log('Executing DetectText command...');
-      const textResponse = await client.send(detectTextCommand);
+      textResponse = await client.send(detectTextCommand);
       console.log('Text detection response:', JSON.stringify(textResponse, null, 2));
+    } catch (error) {
+      console.error('Text detection failed:', error);
+      throw new Error(`Text detection failed: ${error.message}`);
+    }
 
-      // Detect labels for vehicle type
-      console.log('Creating DetectLabels command...');
+    // Detect labels for vehicle type
+    let labelsResponse;
+    try {
+      console.log('Sending DetectLabels request...');
       const detectLabelsCommand = new DetectLabelsCommand({
         Image: {
           Bytes: new Uint8Array(imageBuffer),
@@ -84,72 +100,79 @@ serve(async (req) => {
         MaxLabels: 10,
         MinConfidence: 70,
       });
-
-      console.log('Executing DetectLabels command...');
-      const labelsResponse = await client.send(detectLabelsCommand);
-      console.log('Labels detection response:', JSON.stringify(labelsResponse, null, 2));
-
-      // Process text results
-      const detectedText = textResponse.TextDetections || [];
-      const licensePlate = detectedText.find(text => 
-        text.Type === 'LINE' && 
-        text.DetectedText && 
-        /^[A-Z0-9]{5,8}$/.test(text.DetectedText)
-      );
-
-      if (!licensePlate) {
-        console.log('No valid license plate pattern found in detected text');
-        throw new Error('No valid license plate detected in image');
-      }
-
-      // Find vehicle type from labels
-      const vehicleLabels = labelsResponse.Labels?.filter(label => 
-        ['Car', 'Automobile', 'Vehicle', 'Truck', 'Van', 'SUV', 'Pickup Truck'].includes(label.Name || '')
-      ) || [];
-      
-      const vehicleType = vehicleLabels.length > 0 ? vehicleLabels[0].Name : "Unknown";
-
-      // Construct response
-      const result = {
-        license_plate: licensePlate.DetectedText,
-        confidence: licensePlate.Confidence ? licensePlate.Confidence / 100 : 0,
-        vehicle_type: vehicleType,
-        vehicle_details: {
-          detected_text: detectedText.map(text => ({
-            text: text.DetectedText,
-            type: text.Type,
-            confidence: text.Confidence ? text.Confidence / 100 : 0,
-          })),
-          labels: labelsResponse.Labels?.map(label => ({
-            name: label.Name,
-            confidence: label.Confidence ? label.Confidence / 100 : 0,
-          }))
-        },
-        bounding_box: licensePlate.Geometry?.BoundingBox || null
-      };
-
-      console.log('Processing complete, returning result:', JSON.stringify(result, null, 2));
-
-      return new Response(JSON.stringify(result), {
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'application/json',
-        },
-        status: 200,
-      });
-
-    } catch (rekognitionError) {
-      console.error('Rekognition error:', {
-        name: rekognitionError.name,
-        message: rekognitionError.message,
-        stack: rekognitionError.stack,
-        cause: rekognitionError?.cause
-      });
-      throw rekognitionError;
+      labelsResponse = await client.send(detectLabelsCommand);
+      console.log('Label detection response:', JSON.stringify(labelsResponse, null, 2));
+    } catch (error) {
+      console.error('Label detection failed:', error);
+      throw new Error(`Label detection failed: ${error.message}`);
     }
 
+    // Process text results
+    const detectedText = textResponse.TextDetections || [];
+    const licensePlate = detectedText.find(text => 
+      text.Type === 'LINE' && 
+      text.DetectedText && 
+      /^[A-Z0-9]{5,8}$/.test(text.DetectedText)
+    );
+
+    if (!licensePlate) {
+      console.log('No valid license plate found in:', 
+        detectedText.map(t => ({
+          text: t.DetectedText,
+          type: t.Type,
+          confidence: t.Confidence
+        }))
+      );
+      throw new Error('No valid license plate detected in image');
+    }
+
+    // Find vehicle type from labels
+    const vehicleLabels = labelsResponse.Labels?.filter(label => 
+      ['Car', 'Automobile', 'Vehicle', 'Truck', 'Van', 'SUV', 'Pickup Truck'].includes(label.Name || '')
+    ) || [];
+    
+    if (vehicleLabels.length === 0) {
+      console.log('No vehicle labels found in:', 
+        labelsResponse.Labels?.map(l => ({
+          name: l.Name,
+          confidence: l.Confidence
+        }))
+      );
+    }
+    
+    const vehicleType = vehicleLabels.length > 0 ? vehicleLabels[0].Name : "Unknown";
+
+    // Construct response
+    const result = {
+      license_plate: licensePlate.DetectedText,
+      confidence: licensePlate.Confidence ? licensePlate.Confidence / 100 : 0,
+      vehicle_type: vehicleType,
+      vehicle_details: {
+        detected_text: detectedText.map(text => ({
+          text: text.DetectedText,
+          type: text.Type,
+          confidence: text.Confidence ? text.Confidence / 100 : 0,
+        })),
+        labels: labelsResponse.Labels?.map(label => ({
+          name: label.Name,
+          confidence: label.Confidence ? label.Confidence / 100 : 0,
+        }))
+      },
+      bounding_box: licensePlate.Geometry?.BoundingBox || null
+    };
+
+    console.log('Processing complete, returning result:', JSON.stringify(result, null, 2));
+
+    return new Response(JSON.stringify(result), {
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'application/json',
+      },
+      status: 200,
+    });
+
   } catch (error) {
-    console.error('Edge function error:', {
+    console.error('Function error:', {
       message: error.message,
       stack: error.stack,
       name: error.name,
@@ -158,13 +181,13 @@ serve(async (req) => {
     
     return new Response(JSON.stringify({
       error: error.message || 'Internal server error',
-      details: error.stack || error.cause
+      details: error.stack
     }), {
       headers: {
         ...corsHeaders,
         'Content-Type': 'application/json',
       },
-      status: 500,
+      status: error.message.includes('No valid license plate') ? 400 : 500,
     });
   }
 });

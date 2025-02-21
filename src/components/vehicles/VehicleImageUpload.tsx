@@ -19,6 +19,7 @@ const VehicleImageUpload = () => {
     recognition: 'pending',
     saving: 'pending'
   });
+  const [error, setError] = useState<string | null>(null);
 
   const sanitizeFileName = (fileName: string) => {
     return fileName
@@ -40,6 +41,7 @@ const VehicleImageUpload = () => {
       recognition: 'pending',
       saving: 'pending'
     });
+    setError(null);
 
     // Preview selected image
     setSelectedImage(URL.createObjectURL(file));
@@ -80,17 +82,19 @@ const VehicleImageUpload = () => {
       console.log('Starting license plate and vehicle detection...');
 
       // Process image with edge function
-      const { data: detectionData, error: detectionError } = await supabase.functions
-        .invoke('detect-license-plate', {
-          body: { image_url: urlData.publicUrl }
-        });
+      const response = await supabase.functions.invoke('detect-license-plate', {
+        body: { image_url: urlData.publicUrl }
+      });
 
-      if (detectionError) {
-        console.error('Detection error:', detectionError);
+      // Check if the response contains an error
+      if (response.error) {
+        console.error('Edge function error:', response.error);
         setProgress(prev => ({ ...prev, recognition: 'error' }));
-        throw new Error(`Detection failed: ${detectionError.message}`);
+        setError(`Detection failed: ${response.error.message || 'Unknown error'}`);
+        throw new Error(`Detection failed: ${response.error.message || 'Unknown error'}`);
       }
 
+      const detectionData = response.data;
       if (!detectionData) {
         console.error('No detection data received');
         setProgress(prev => ({ ...prev, recognition: 'error' }));
@@ -124,8 +128,9 @@ const VehicleImageUpload = () => {
 
     } catch (error) {
       console.error('Process failed:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to process image');
-      // Note: We're not resetting the states anymore, so the error state remains visible
+      const errorMessage = error instanceof Error ? error.message : 'Failed to process image';
+      setError(errorMessage);
+      toast.error(errorMessage);
     }
   };
 
@@ -183,6 +188,11 @@ const VehicleImageUpload = () => {
               <ProgressItem status={progress.upload} label="Uploading image" />
               <ProgressItem status={progress.recognition} label="Processing with AWS Rekognition" />
               <ProgressItem status={progress.saving} label="Saving results" />
+              {error && (
+                <div className="text-sm text-red-500 mt-2">
+                  Error: {error}
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
