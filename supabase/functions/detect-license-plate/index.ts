@@ -10,7 +10,8 @@ interface RequestBody {
 serve(async (req) => {
   console.log('Function started:', {
     method: req.method,
-    url: req.url
+    url: req.url,
+    headers: Object.fromEntries(req.headers.entries())
   });
 
   // Handle CORS preflight
@@ -22,13 +23,19 @@ serve(async (req) => {
   try {
     // Parse and validate request
     if (req.method !== 'POST') {
-      throw new Error('Method not allowed');
+      throw new Error(`Method ${req.method} not allowed`);
     }
 
+    console.log('Parsing request body...');
     const body = await req.json() as RequestBody;
+    
     if (!body.image_url) {
-      throw new Error('No image URL provided');
+      throw new Error('No image URL provided in request body');
     }
+
+    console.log('Request validation successful, processing image:', {
+      url: body.image_url.substring(0, 50) + '...' // Log truncated URL for privacy
+    });
 
     // Process image
     const result = await processImage(body.image_url);
@@ -44,12 +51,10 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Function error:', {
+      name: error.name,
       message: error.message,
       stack: error.stack,
-      name: error.name,
     });
-    
-    const statusCode = error.message.includes('No valid license plate') ? 400 : 500;
     
     return new Response(JSON.stringify({
       error: error.message,
@@ -59,8 +64,7 @@ serve(async (req) => {
         ...corsHeaders,
         'Content-Type': 'application/json',
       },
-      status: statusCode,
+      status: error.message.includes('No valid license plate') ? 400 : 500,
     });
   }
 });
-

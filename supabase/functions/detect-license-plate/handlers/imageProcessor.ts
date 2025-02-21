@@ -2,7 +2,7 @@
 import { RekognitionService } from "../services/rekognition.ts";
 
 export async function downloadImage(imageUrl: string): Promise<ArrayBuffer> {
-  console.log('Downloading image:', imageUrl);
+  console.log('Downloading image:', imageUrl.substring(0, 50) + '...');
   const response = await fetch(imageUrl);
   if (!response.ok) {
     throw new Error(`Failed to fetch image: ${response.statusText}`);
@@ -19,17 +19,26 @@ export async function downloadImage(imageUrl: string): Promise<ArrayBuffer> {
 
 export async function processImage(imageUrl: string) {
   try {
+    console.log('Starting image processing...');
+    
     // Download and process image
     const imageBuffer = await downloadImage(imageUrl);
 
-    // Initialize Rekognition service
+    console.log('Initializing Rekognition service...');
     const rekognition = new RekognitionService();
+    console.log('Rekognition service initialized');
 
     // Detect text and labels
+    console.log('Detecting text in image...');
     const [textResponse, labelsResponse] = await Promise.all([
       rekognition.detectText(imageBuffer),
       rekognition.detectLabels(imageBuffer)
     ]);
+
+    console.log('Raw Rekognition responses:', {
+      text: textResponse,
+      labels: labelsResponse
+    });
 
     // Process text results
     const detectedText = textResponse.TextDetections || [];
@@ -67,7 +76,7 @@ export async function processImage(imageUrl: string) {
     const vehicleType = vehicleLabels.length > 0 ? vehicleLabels[0].Name : "Unknown";
 
     // Return processed results
-    return {
+    const result = {
       license_plate: licensePlate.DetectedText,
       confidence: licensePlate.Confidence ? licensePlate.Confidence / 100 : 0,
       vehicle_type: vehicleType,
@@ -84,9 +93,16 @@ export async function processImage(imageUrl: string) {
       },
       bounding_box: licensePlate.Geometry?.BoundingBox || null
     };
+
+    console.log('Processing complete, returning result:', result);
+    return result;
+
   } catch (error) {
-    console.error('Error in processImage:', error);
+    console.error('Error in processImage:', {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+    });
     throw error;
   }
 }
-

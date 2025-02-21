@@ -1,71 +1,79 @@
 
-import { 
-  RekognitionClient,
-  DetectTextCommand,
-  DetectLabelsCommand 
-} from "https://deno.land/x/aws_sdk@v3.32.0-1/client-rekognition/mod.ts";
+import { RekognitionClient, DetectTextCommand, DetectLabelsCommand } from "npm:@aws-sdk/client-rekognition@^3.0.0";
 
 export class RekognitionService {
   private client: RekognitionClient;
 
   constructor() {
-    console.log('Initializing Rekognition service...');
-    const accessKeyId = Deno.env.get("AWS_ACCESS_KEY_ID");
-    const secretAccessKey = Deno.env.get("AWS_SECRET_ACCESS_KEY");
+    console.log('Initializing Rekognition client...');
     
-    if (!accessKeyId || !secretAccessKey) {
-      throw new Error('AWS credentials not properly configured');
+    // Validate AWS credentials
+    if (!Deno.env.get("AWS_ACCESS_KEY_ID") || !Deno.env.get("AWS_SECRET_ACCESS_KEY")) {
+      throw new Error("AWS credentials not found in environment");
     }
 
-    this.client = new RekognitionClient({
-      region: "us-east-2",
-      credentials: {
-        accessKeyId,
-        secretAccessKey,
-      },
-    });
+    try {
+      this.client = new RekognitionClient({
+        region: "us-east-1",
+        credentials: {
+          accessKeyId: Deno.env.get("AWS_ACCESS_KEY_ID") || '',
+          secretAccessKey: Deno.env.get("AWS_SECRET_ACCESS_KEY") || ''
+        }
+      });
+      console.log('Rekognition client initialized successfully');
+    } catch (error) {
+      console.error('Failed to initialize Rekognition client:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack,
+      });
+      throw error;
+    }
   }
 
-  async detectText(imageBuffer: ArrayBuffer) {
+  async detectText(imageData: ArrayBuffer) {
+    console.log('Detecting text with Rekognition...');
     try {
-      console.log('Starting text detection...');
       const command = new DetectTextCommand({
         Image: {
-          Bytes: new Uint8Array(imageBuffer),
-        },
+          Bytes: new Uint8Array(imageData)
+        }
       });
-      
+
       const response = await this.client.send(command);
-      console.log('Text detection completed:', {
-        textCount: response.TextDetections?.length || 0
-      });
+      console.log('Text detection complete');
       return response;
     } catch (error) {
-      console.error('Error in detectText:', error);
-      throw new Error(`Text detection failed: ${error.message}`);
+      console.error('Error in detectText:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack,
+      });
+      throw error;
     }
   }
 
-  async detectLabels(imageBuffer: ArrayBuffer) {
+  async detectLabels(imageData: ArrayBuffer) {
+    console.log('Detecting labels with Rekognition...');
     try {
-      console.log('Starting label detection...');
       const command = new DetectLabelsCommand({
         Image: {
-          Bytes: new Uint8Array(imageBuffer),
+          Bytes: new Uint8Array(imageData)
         },
         MaxLabels: 10,
-        MinConfidence: 70,
+        MinConfidence: 70
       });
-      
+
       const response = await this.client.send(command);
-      console.log('Label detection completed:', {
-        labelCount: response.Labels?.length || 0
-      });
+      console.log('Label detection complete');
       return response;
     } catch (error) {
-      console.error('Error in detectLabels:', error);
-      throw new Error(`Label detection failed: ${error.message}`);
+      console.error('Error in detectLabels:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack,
+      });
+      throw error;
     }
   }
 }
-
