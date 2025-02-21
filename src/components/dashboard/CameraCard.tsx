@@ -72,21 +72,49 @@ const CameraCard = ({ camera }: CameraCardProps) => {
     }
   };
 
-  useEffect(() => {
-    if (videoRef.current && camera.streaming_url && camera.status === 'active') {
-      // For HLS streams
-      if (camera.streaming_url.includes('.m3u8')) {
-        // Initialize HLS.js here if needed
-        console.log("HLS stream detected:", camera.streaming_url);
-      } 
-      // For regular streams (like IPFS or direct URLs)
-      else {
-        videoRef.current.src = camera.streaming_url;
-        videoRef.current.play().catch(error => {
+  const initializeVideo = async () => {
+    if (!videoRef.current || !camera.streaming_url) return;
+
+    try {
+      // Reset video element
+      videoRef.current.src = '';
+      videoRef.current.load();
+
+      // Set new source and play
+      videoRef.current.src = camera.streaming_url;
+      
+      const playPromise = videoRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(error => {
           console.error("Error playing video:", error);
+          toast.error("Failed to start video stream");
         });
       }
+    } catch (error) {
+      console.error("Error initializing video:", error);
+      toast.error("Failed to initialize video stream");
     }
+  };
+
+  useEffect(() => {
+    if (camera.status === 'active') {
+      console.log("Initializing video with URL:", camera.streaming_url);
+      initializeVideo();
+    } else {
+      // Stop video if camera is not active
+      if (videoRef.current) {
+        videoRef.current.pause();
+        videoRef.current.src = '';
+      }
+    }
+
+    return () => {
+      // Cleanup on unmount
+      if (videoRef.current) {
+        videoRef.current.pause();
+        videoRef.current.src = '';
+      }
+    };
   }, [camera.streaming_url, camera.status]);
 
   return (
@@ -97,8 +125,8 @@ const CameraCard = ({ camera }: CameraCardProps) => {
             ref={videoRef}
             className="absolute inset-0 w-full h-full rounded-lg object-cover"
             autoPlay
-            muted
             playsInline
+            muted
             controls
           />
         ) : (
@@ -176,3 +204,4 @@ const CameraCard = ({ camera }: CameraCardProps) => {
 };
 
 export default CameraCard;
+
