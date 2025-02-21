@@ -1,5 +1,5 @@
 
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { Card } from "../ui/card";
 import { Button } from "../ui/button";
 import { Video, Power, PlayCircle, StopCircle, Share2, Settings } from "lucide-react";
@@ -12,26 +12,83 @@ import {
 } from "../ui/select";
 import { toggleCameraStatus, toggleRecording, shareRecording, updateCameraProcessor } from "@/utils/cameraOperations";
 import { VideoProcessorType } from "@/types/video-processor";
+import { toast } from "sonner";
 
 interface CameraCardProps {
   camera: any;
 }
 
 const CameraCard = ({ camera }: CameraCardProps) => {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  
   const handleProcessorChange = async (value: VideoProcessorType) => {
-    await updateCameraProcessor(camera.id, value);
+    try {
+      await updateCameraProcessor(camera.id, value);
+      toast.success("Processor updated successfully");
+    } catch (error) {
+      console.error("Error updating processor:", error);
+      toast.error("Failed to update processor");
+    }
   };
+
+  const handleStatusToggle = async () => {
+    try {
+      await toggleCameraStatus(camera.id, camera.status);
+      toast.success(`Camera ${camera.status === 'active' ? 'deactivated' : 'activated'}`);
+    } catch (error) {
+      console.error("Error toggling camera status:", error);
+      toast.error("Failed to toggle camera status");
+    }
+  };
+
+  const handleRecordingToggle = async () => {
+    try {
+      await toggleRecording(camera.id, camera.is_recording);
+      toast.success(camera.is_recording ? "Recording stopped" : "Recording started");
+    } catch (error) {
+      console.error("Error toggling recording:", error);
+      toast.error("Failed to toggle recording");
+    }
+  };
+
+  const handleShare = async () => {
+    try {
+      await shareRecording(camera.id);
+      toast.success("Recording shared successfully");
+    } catch (error) {
+      console.error("Error sharing recording:", error);
+      toast.error("Failed to share recording");
+    }
+  };
+
+  useEffect(() => {
+    if (videoRef.current && camera.streaming_url && camera.status === 'active') {
+      // For HLS streams
+      if (camera.streaming_url.includes('.m3u8')) {
+        // Initialize HLS.js here if needed
+        console.log("HLS stream detected:", camera.streaming_url);
+      } 
+      // For regular streams (like IPFS or direct URLs)
+      else {
+        videoRef.current.src = camera.streaming_url;
+        videoRef.current.play().catch(error => {
+          console.error("Error playing video:", error);
+        });
+      }
+    }
+  }, [camera.streaming_url, camera.status]);
 
   return (
     <Card className="hover-scale glass-card p-4 overflow-hidden">
       <div className="aspect-video bg-gray-800 rounded-lg mb-3 relative w-full h-[200px]">
         {camera.streaming_url ? (
           <video
+            ref={videoRef}
             className="absolute inset-0 w-full h-full rounded-lg object-cover"
-            src={camera.streaming_url}
             autoPlay
             muted
             playsInline
+            controls
           />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center text-gray-400">
@@ -49,7 +106,7 @@ const CameraCard = ({ camera }: CameraCardProps) => {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => toggleRecording(camera.id, camera.is_recording)}
+              onClick={handleRecordingToggle}
               className={camera.is_recording ? 'text-red-500 hover:text-red-600' : 'text-green-500 hover:text-green-600'}
             >
               {camera.is_recording ? (
@@ -61,7 +118,7 @@ const CameraCard = ({ camera }: CameraCardProps) => {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => shareRecording(camera.id)}
+              onClick={handleShare}
               className="text-blue-500 hover:text-blue-600"
             >
               <Share2 size={18} />
@@ -69,7 +126,7 @@ const CameraCard = ({ camera }: CameraCardProps) => {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => toggleCameraStatus(camera.id, camera.status)}
+              onClick={handleStatusToggle}
               className={camera.status === 'active' ? 'text-green-500 hover:text-green-600' : 'text-red-500 hover:text-red-600'}
             >
               <Power size={18} />
@@ -100,4 +157,3 @@ const CameraCard = ({ camera }: CameraCardProps) => {
 };
 
 export default CameraCard;
-

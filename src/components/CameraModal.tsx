@@ -21,30 +21,53 @@ const CameraModal = ({ isOpen, onClose }: CameraModalProps) => {
   const [type, setType] = React.useState("rtmp");
   const [streamingUrl, setStreamingUrl] = React.useState("");
   const [streamKey] = React.useState(() => crypto.randomUUID());
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
 
   const handleCopyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     toast.success("Copied to clipboard!");
   };
 
+  const validateStreamingUrl = (url: string): boolean => {
+    if (!url) return false;
+    try {
+      new URL(url);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!name.trim() || !location.trim()) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+
+    if (type !== 'rtmp' && !validateStreamingUrl(streamingUrl)) {
+      toast.error("Please enter a valid streaming URL");
+      return;
+    }
+
+    setIsSubmitting(true);
     
     try {
       const { error } = await supabase
         .from('cameras')
         .insert([
           { 
-            name,
-            location,
+            name: name.trim(),
+            location: location.trim(),
             type,
-            status: 'active',
+            status: 'inactive', // Start cameras as inactive by default
             configuration: {
               stream_key: streamKey,
-              rtmp_url: "rtmp://your-rtmp-server-url/live"
+              rtmp_url: process.env.VITE_RTMP_SERVER_URL || "rtmp://your-rtmp-server-url/live"
             },
             streaming_url: type === 'rtmp' 
-              ? `rtmp://your-rtmp-server-url/live/${streamKey}` 
+              ? `${process.env.VITE_RTMP_SERVER_URL || "rtmp://your-rtmp-server-url/live"}/${streamKey}` 
               : streamingUrl
           }
         ]);
@@ -58,10 +81,14 @@ const CameraModal = ({ isOpen, onClose }: CameraModalProps) => {
       setType("rtmp");
       setStreamingUrl("");
     } catch (error) {
-      toast.error("Failed to add camera");
       console.error("Error adding camera:", error);
+      toast.error("Failed to add camera");
+    } finally {
+      setIsSubmitting(false);
     }
   };
+
+  const rtmpServerUrl = process.env.VITE_RTMP_SERVER_URL || "rtmp://your-rtmp-server-url/live";
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -102,14 +129,14 @@ const CameraModal = ({ isOpen, onClose }: CameraModalProps) => {
                 <Label>RTMP URL</Label>
                 <div className="flex items-center space-x-2">
                   <Input
-                    value="rtmp://your-rtmp-server-url/live"
+                    value={rtmpServerUrl}
                     readOnly
                   />
                   <Button
                     type="button"
                     variant="outline"
                     size="icon"
-                    onClick={() => handleCopyToClipboard("rtmp://your-rtmp-server-url/live")}
+                    onClick={() => handleCopyToClipboard(rtmpServerUrl)}
                   >
                     <Copy className="h-4 w-4" />
                   </Button>
@@ -142,7 +169,9 @@ const CameraModal = ({ isOpen, onClose }: CameraModalProps) => {
                 <Button variant="outline" type="button" onClick={onClose}>
                   Cancel
                 </Button>
-                <Button type="submit">Add Camera</Button>
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? "Adding..." : "Add Camera"}
+                </Button>
               </div>
             </form>
           </TabsContent>
@@ -196,7 +225,9 @@ const CameraModal = ({ isOpen, onClose }: CameraModalProps) => {
                 <Button variant="outline" type="button" onClick={onClose}>
                   Cancel
                 </Button>
-                <Button type="submit">Add Camera</Button>
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? "Adding..." : "Add Camera"}
+                </Button>
               </div>
             </form>
           </TabsContent>
