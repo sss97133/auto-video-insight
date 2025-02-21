@@ -7,27 +7,16 @@ import { Copy } from "lucide-react";
 import { toast } from "sonner";
 
 interface StreamingSoftwareFormProps {
-  name: string;
-  setName: (name: string) => void;
-  location: string;
-  setLocation: (location: string) => void;
   streamKey: string;
   rtmpServerUrl: string;
   isSubmitting: boolean;
-  onSubmit: (e: React.FormEvent) => Promise<void>;
   onClose: () => void;
 }
 
 const StreamingSoftwareForm = ({
-  name,
-  setName,
-  location,
-  setLocation,
   streamKey,
   rtmpServerUrl,
   isSubmitting,
-  onSubmit,
-  onClose,
 }: StreamingSoftwareFormProps) => {
   const handleCopyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -35,28 +24,7 @@ const StreamingSoftwareForm = ({
   };
 
   return (
-    <form onSubmit={onSubmit} className="space-y-4">
-      <div className="space-y-2">
-        <Label htmlFor="name">Camera Name</Label>
-        <Input
-          id="name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Enter camera name"
-          required
-        />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="location">Location</Label>
-        <Input
-          id="location"
-          value={location}
-          onChange={(e) => setLocation(e.target.value)}
-          placeholder="Enter camera location"
-          required
-        />
-      </div>
-      
+    <div className="space-y-4">
       <div className="space-y-2">
         <Label>RTMP URL</Label>
         <div className="flex items-center space-x-2">
@@ -96,16 +64,7 @@ const StreamingSoftwareForm = ({
           Use these credentials in your streaming software (like OBS Studio)
         </p>
       </div>
-
-      <div className="flex justify-end space-x-2 pt-4">
-        <Button variant="outline" type="button" onClick={onClose}>
-          Cancel
-        </Button>
-        <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? "Adding..." : "Add Camera"}
-        </Button>
-      </div>
-    </form>
+    </div>
   );
 };
 

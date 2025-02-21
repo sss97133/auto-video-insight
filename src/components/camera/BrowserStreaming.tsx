@@ -10,11 +10,6 @@ import { cn } from "@/lib/utils";
 interface BrowserStreamingProps {
   rtmpServerUrl: string;
   streamKey: string;
-  name: string;
-  setName: (name: string) => void;
-  location: string;
-  setLocation: (location: string) => void;
-  onSubmit: (e: React.FormEvent) => Promise<void>;
   isSubmitting: boolean;
   onClose: () => void;
 }
@@ -22,11 +17,6 @@ interface BrowserStreamingProps {
 const BrowserStreaming = ({
   rtmpServerUrl,
   streamKey,
-  name,
-  setName,
-  location,
-  setLocation,
-  onSubmit,
   isSubmitting,
   onClose,
 }: BrowserStreamingProps) => {
@@ -78,7 +68,7 @@ const BrowserStreaming = ({
   };
 
   return (
-    <form onSubmit={onSubmit} className="space-y-4">
+    <div className="space-y-4">
       <DeviceSelectors
         devices={devices}
         selectedDevices={selectedDevices}
@@ -109,18 +99,13 @@ const BrowserStreaming = ({
             {isConnecting ? "Testing Connection..." : "Test Connection"}
           </Button>
         ) : (
-          <>
-            <div className="flex items-center justify-center gap-2 p-2 bg-green-100 text-green-700 rounded-md">
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-              Connection established successfully
-            </div>
-            <Button type="submit" disabled={isSubmitting} className="w-full">
-              {isSubmitting ? "Adding Camera..." : "Add Camera"}
-            </Button>
-          </>
+          <div className="flex items-center justify-center gap-2 p-2 bg-green-100 text-green-700 rounded-md">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+            Connection established successfully
+          </div>
         )}
       </div>
-    </form>
+    </div>
   );
 };
 
