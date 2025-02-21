@@ -9,12 +9,14 @@ interface StatsSectionProps {
   cameras: any[] | undefined;
 }
 
-interface RecordingMetadata {
-  metadata: {
-    size?: number;
-    duration?: number;
-    format?: string;
-  } | null;
+type VideoRecordingMetadata = {
+  size: number;
+  duration?: number;
+  format?: string;
+}
+
+interface DatabaseRecording {
+  metadata: VideoRecordingMetadata | null;
 }
 
 const StatsSection = ({ cameras }: StatsSectionProps) => {
@@ -37,8 +39,8 @@ const StatsSection = ({ cameras }: StatsSectionProps) => {
         }
 
         // Calculate total size from metadata with proper type checking
-        const totalBytes = recordings.reduce((acc, recording: RecordingMetadata) => {
-          const size = recording.metadata?.size || 0;
+        const totalBytes = recordings.reduce((acc, recording: DatabaseRecording) => {
+          const size = recording.metadata?.size ?? 0;
           return acc + size;
         }, 0);
 
