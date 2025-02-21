@@ -1,69 +1,65 @@
-# Welcome to your Lovable project
 
-## Project info
+# Auto Video Insight
 
-**URL**: https://lovable.dev/projects/7900cd23-4a8b-4859-bc4b-34f711cf796e
+A powerful video processing system for managing and analyzing IP camera feeds, built with React and Supabase.
 
-## How can I edit this code?
+## 🚀 Features
 
-There are several ways of editing your application.
+- **Multiple Camera Input Methods**:
+  - Browser-based streaming (WebRTC)
+  - Streaming software support (OBS Studio via RTMP)
+  - Direct URL connections (IP cameras, RTSP/RTMP streams)
+- **Real-time Video Processing**
+- **Vehicle Detection & Analytics**
+- **Audit Logging**
+- **Interactive Dashboard**
 
-**Use Lovable**
+## 🛠️ Tech Stack
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/7900cd23-4a8b-4859-bc4b-34f711cf796e) and start prompting.
+- **Frontend**: React, TypeScript, Vite
+- **UI Components**: shadcn/ui, Tailwind CSS
+- **State Management**: TanStack Query
+- **Backend**: Supabase
+- **Real-time Features**: Supabase Realtime
 
-Changes made via Lovable will be committed automatically to this repo.
+## 🏃‍♂️ Getting Started
 
-**Use your preferred IDE**
+1. **Clone the repository**
+   ```bash
+   git clone [your-repo-url]
+   cd auto-video-insight
+   ```
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+3. **Set up environment variables**
+   Create a `.env` file in the root directory:
+   ```env
+   VITE_SUPABASE_URL=your_supabase_url
+   VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+   ```
 
-Follow these steps:
+4. **Start the development server**
+   ```bash
+   npm run dev
+   ```
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+5. **Build for production**
+   ```bash
+   npm run build
+   ```
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+## 📖 Documentation
 
-# Step 3: Install the necessary dependencies.
-npm i
+For detailed documentation about the project's architecture, components, and advanced features, please see [DOCUMENTATION.md](DOCUMENTATION.md).
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
+## 🤝 Contributing
 
-**Edit a file directly in GitHub**
+Contributions are welcome! Please feel free to submit a Pull Request.
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## 📝 License
 
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with .
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/7900cd23-4a8b-4859-bc4b-34f711cf796e) and click on Share -> Publish.
-
-## I want to use a custom domain - is that possible?
-
-We don't support custom domains (yet). If you want to deploy your project under your own domain then we recommend using Netlify. Visit our docs for more details: [Custom domains](https://docs.lovable.dev/tips-tricks/custom-domain/)
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
