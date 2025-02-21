@@ -51,10 +51,10 @@ export const useAddCamera = ({ onSuccess }: UseAddCameraParams = {}) => {
             status: 'inactive',
             configuration: {
               stream_key: streamKey,
-              rtmp_url: process.env.VITE_RTMP_SERVER_URL || "rtmp://your-rtmp-server-url/live"
+              rtmp_url: import.meta.env.VITE_RTMP_SERVER_URL || "rtmp://your-rtmp-server-url/live"
             },
             streaming_url: type === 'rtmp' 
-              ? `${process.env.VITE_RTMP_SERVER_URL || "rtmp://your-rtmp-server-url/live"}/${streamKey}` 
+              ? `${import.meta.env.VITE_RTMP_SERVER_URL || "rtmp://your-rtmp-server-url/live"}/${streamKey}` 
               : streamingUrl
           }
         ]);

@@ -28,7 +28,7 @@ const CameraModal = ({ isOpen, onClose }: CameraModalProps) => {
     onSuccess: onClose
   });
 
-  const rtmpServerUrl = process.env.VITE_RTMP_SERVER_URL || "rtmp://your-rtmp-server-url/live";
+  const rtmpServerUrl = import.meta.env.VITE_RTMP_SERVER_URL || "rtmp://your-rtmp-server-url/live";
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
