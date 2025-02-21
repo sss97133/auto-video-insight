@@ -1,6 +1,6 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { VideoProcessorType } from "@/types/video-processor";
 
 export const toggleCameraStatus = async (id: string, currentStatus: string) => {
   const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
@@ -21,7 +21,6 @@ export const toggleCameraStatus = async (id: string, currentStatus: string) => {
 
 export const toggleRecording = async (id: string, isCurrentlyRecording: boolean) => {
   try {
-    // Update camera recording status
     const { error: updateError } = await supabase
       .from('cameras')
       .update({ is_recording: !isCurrentlyRecording })
@@ -30,7 +29,6 @@ export const toggleRecording = async (id: string, isCurrentlyRecording: boolean)
     if (updateError) throw updateError;
 
     if (!isCurrentlyRecording) {
-      // Start new recording
       const storagePath = `recordings/${id}/${new Date().getTime()}.mp4`;
       const { error: recordingError } = await supabase
         .from('video_recordings')
@@ -44,7 +42,6 @@ export const toggleRecording = async (id: string, isCurrentlyRecording: boolean)
       if (recordingError) throw recordingError;
       toast.success('Recording started');
     } else {
-      // Stop current recording
       const { error: stopError } = await supabase
         .from('video_recordings')
         .update({
@@ -65,7 +62,6 @@ export const toggleRecording = async (id: string, isCurrentlyRecording: boolean)
 
 export const shareRecording = async (cameraId: string) => {
   try {
-    // Get the latest completed recording for this camera
     const { data: recording, error: fetchError } = await supabase
       .from('video_recordings')
       .select('*')
@@ -82,12 +78,10 @@ export const shareRecording = async (cameraId: string) => {
       return;
     }
 
-    // Generate a unique share token
     const shareToken = crypto.randomUUID();
     const expiryDate = new Date();
-    expiryDate.setDate(expiryDate.getDate() + 7); // Set expiry to 7 days from now
+    expiryDate.setDate(expiryDate.getDate() + 7);
 
-    // Create share record
     const { error: shareError } = await supabase
       .from('shared_videos')
       .insert({
@@ -100,15 +94,38 @@ export const shareRecording = async (cameraId: string) => {
 
     if (shareError) throw shareError;
 
-    // Generate shareable link
     const shareableLink = `${window.location.origin}/shared/${shareToken}`;
     
-    // Copy link to clipboard
     await navigator.clipboard.writeText(shareableLink);
     toast.success('Share link copied to clipboard! The link will expire in 7 days.');
-
   } catch (error) {
     toast.error('Failed to share recording');
     console.error('Error sharing recording:', error);
+  }
+};
+
+export const updateCameraProcessor = async (id: string, processorType: VideoProcessorType) => {
+  try {
+    const { error } = await supabase
+      .from('cameras')
+      .update({
+        configuration: {
+          processor_type: processorType,
+          updated_at: new Date().toISOString(),
+          settings: {
+            frameRate: 30,
+            resolution: '1080p',
+            detectionConfidence: 0.7
+          }
+        }
+      })
+      .eq('id', id);
+
+    if (error) throw error;
+
+    toast.success(`Video processor updated to ${processorType}`);
+  } catch (error) {
+    toast.error('Failed to update video processor');
+    console.error('Error updating video processor:', error);
   }
 };
