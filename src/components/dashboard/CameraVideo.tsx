@@ -1,153 +1,14 @@
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect } from "react";
 import { Webcam } from "lucide-react";
-import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
-
-interface CameraVideoProps {
-  streamingUrl: string | null;
-  isActive: boolean;
-}
-
-interface DetectedLabel {
-  name: string;
-  confidence: number;
-}
+import { CameraVideoProps } from "@/types/camera-video";
+import { useWebcam } from "@/hooks/useWebcam";
+import { useFrameProcessor } from "@/hooks/useFrameProcessor";
+import DetectedLabels from "./camera/DetectedLabels";
 
 const CameraVideo = ({ streamingUrl, isActive }: CameraVideoProps) => {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const processingRef = useRef<boolean>(false);
-  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
-  const [detectedLabels, setDetectedLabels] = useState<DetectedLabel[]>([]);
-  const frameProcessingInterval = useRef<number>();
-
-  const captureAndAnalyzeFrame = async () => {
-    if (!videoRef.current || !canvasRef.current || !isActive) return;
-
-    const canvas = canvasRef.current;
-    const video = videoRef.current;
-    const context = canvas.getContext('2d');
-
-    if (!context) return;
-
-    // Set canvas size to match video dimensions
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    
-    // Draw the current video frame
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-    // Convert canvas to blob
-    const blob = await new Promise<Blob | null>(resolve => {
-      canvas.toBlob(resolve, 'image/jpeg', 0.8);
-    });
-
-    if (!blob) return;
-
-    try {
-      const { data, error } = await supabase.functions.invoke('detect-license-plate', {
-        body: {
-          image: await blob.arrayBuffer(),
-          detectObjects: true
-        }
-      });
-
-      if (error) {
-        console.error('Error analyzing frame:', error);
-        return;
-      }
-
-      if (data?.Labels) {
-        setDetectedLabels(data.Labels.map((label: any) => ({
-          name: label.Name,
-          confidence: label.Confidence
-        })));
-      }
-
-    } catch (error) {
-      console.error('Failed to analyze frame:', error);
-    }
-  };
-
-  const startFrameProcessing = () => {
-    if (!processingRef.current) {
-      processingRef.current = true;
-      // Process frames every 1 second
-      frameProcessingInterval.current = window.setInterval(captureAndAnalyzeFrame, 1000);
-    }
-  };
-
-  const stopFrameProcessing = () => {
-    processingRef.current = false;
-    if (frameProcessingInterval.current) {
-      clearInterval(frameProcessingInterval.current);
-      frameProcessingInterval.current = undefined;
-    }
-    setDetectedLabels([]);
-  };
-
-  const initializeWebcam = async () => {
-    if (!videoRef.current) {
-      console.log("Video initialization skipped - missing ref");
-      return;
-    }
-
-    try {
-      console.log("Requesting webcam access...");
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: true,
-        audio: false 
-      });
-      
-      setHasPermission(true);
-      
-      console.log("Webcam access granted, initializing video element");
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        
-        // Start frame processing once video is playing
-        videoRef.current.onplaying = () => {
-          console.log("Video stream started, beginning frame processing");
-          startFrameProcessing();
-        };
-
-        const playPromise = videoRef.current.play();
-        if (playPromise !== undefined) {
-          playPromise.catch(error => {
-            console.error("Webcam playback failed:", error);
-            toast.error("Failed to start webcam stream");
-          });
-        }
-      }
-    } catch (error) {
-      console.error("Failed to initialize webcam:", error);
-      setHasPermission(false);
-      
-      if (error instanceof Error) {
-        if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
-          toast.error("Camera access denied. Please grant camera permissions to use this feature.");
-        } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
-          toast.error("No camera device found. Please connect a camera and try again.");
-        } else {
-          toast.error("Failed to access webcam. Please check your camera settings.");
-        }
-      }
-    }
-  };
-
-  const stopWebcam = () => {
-    stopFrameProcessing();
-    if (videoRef.current?.srcObject) {
-      const stream = videoRef.current.srcObject as MediaStream;
-      stream.getTracks().forEach(track => {
-        track.stop();
-        stream.removeTrack(track);
-      });
-      videoRef.current.srcObject = null;
-      console.log("Webcam stream stopped and cleaned up");
-    }
-  };
+  const { videoRef, hasPermission, initializeWebcam, stopWebcam } = useWebcam();
+  const { canvasRef, detectedLabels, startFrameProcessing, stopFrameProcessing } = useFrameProcessor();
 
   useEffect(() => {
     console.log("CameraVideo useEffect triggered:", {
@@ -156,14 +17,27 @@ const CameraVideo = ({ streamingUrl, isActive }: CameraVideoProps) => {
       hasPermission
     });
 
-    if (isActive) {
-      initializeWebcam();
-    } else {
-      stopWebcam();
-    }
+    let stream: MediaStream | null = null;
+
+    const setup = async () => {
+      if (isActive) {
+        stream = await initializeWebcam();
+        if (stream && videoRef.current) {
+          videoRef.current.onplaying = () => {
+            console.log("Video stream started, beginning frame processing");
+            startFrameProcessing(videoRef, isActive);
+          };
+        }
+      }
+    };
+
+    setup();
 
     return () => {
-      stopWebcam();
+      stopFrameProcessing();
+      if (stream) {
+        stopWebcam(stream);
+      }
     };
   }, [isActive]);
 
@@ -179,18 +53,7 @@ const CameraVideo = ({ streamingUrl, isActive }: CameraVideoProps) => {
             playsInline
             muted
           />
-          {detectedLabels.length > 0 && (
-            <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white p-2 text-sm">
-              <p className="font-semibold">Detected Objects:</p>
-              <div className="flex flex-wrap gap-1">
-                {detectedLabels.map((label, index) => (
-                  <span key={index} className="bg-blue-500 bg-opacity-50 px-2 py-1 rounded">
-                    {label.name} ({label.confidence.toFixed(0)}%)
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
+          <DetectedLabels labels={detectedLabels} />
         </>
       ) : (
         <div className="absolute inset-0 flex items-center justify-center text-gray-400">
@@ -207,4 +70,3 @@ const CameraVideo = ({ streamingUrl, isActive }: CameraVideoProps) => {
 };
 
 export default CameraVideo;
-
