@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { VehicleDetectionResult } from "@/types/vehicle-detection";
 
 interface ProgressState {
   upload: 'pending' | 'processing' | 'complete' | 'error';
@@ -83,43 +84,42 @@ export const useVehicleUpload = () => {
       console.log('Image public URL:', urlData.publicUrl);
       console.log('Starting license plate and vehicle detection...');
 
-      const response = await supabase.functions.invoke('detect-license-plate', {
+      const { data, error: detectionError } = await supabase.functions.invoke<VehicleDetectionResult>('detect-license-plate', {
         body: { image_url: urlData.publicUrl }
       });
 
       console.log('Edge function response:', {
-        error: response.error,
-        data: response.data,
+        error: detectionError,
+        data,
       });
 
-      if (response.error) {
+      if (detectionError) {
         console.error('Edge function error:', {
-          error: response.error,
-          message: response.error.message || 'Unknown error'
+          error: detectionError,
+          message: detectionError.message || 'Unknown error'
         });
         setProgress(prev => ({ ...prev, recognition: 'error' }));
-        throw new Error(`Detection failed: ${response.error.message || 'Unknown error'}`);
+        throw new Error(`Detection failed: ${detectionError.message || 'Unknown error'}`);
       }
 
-      const detectionData = response.data;
-      if (!detectionData) {
+      if (!data) {
         console.error('No detection data received from edge function');
         setProgress(prev => ({ ...prev, recognition: 'error' }));
         throw new Error('No data received from detection service');
       }
 
-      console.log('Detection data:', detectionData);
+      console.log('Detection data:', data);
       setProgress(prev => ({ ...prev, recognition: 'complete', saving: 'processing' }));
       
       const { error: insertError } = await supabase
         .from('vehicles')
         .insert([{
-          license_plate: detectionData.license_plate,
-          confidence: detectionData.confidence,
-          vehicle_type: detectionData.vehicle_type,
+          license_plate: data.license_plate,
+          confidence: data.confidence,
+          vehicle_type: data.vehicle_type,
           image_url: urlData.publicUrl,
-          vehicle_details: detectionData.vehicle_details,
-          bounding_box: detectionData.bounding_box,
+          vehicle_details: data.vehicle_details,
+          bounding_box: data.bounding_box,
           last_seen: new Date().toISOString()
         }]);
 
@@ -133,7 +133,7 @@ export const useVehicleUpload = () => {
       }
 
       setProgress(prev => ({ ...prev, saving: 'complete' }));
-      toast.success(`Vehicle detected: ${detectionData.vehicle_type}`);
+      toast.success(`Vehicle detected: ${data.vehicle_type}`);
 
     } catch (error) {
       console.error('Process failed:', error);
