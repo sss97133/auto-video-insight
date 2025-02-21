@@ -1,0 +1,111 @@
+
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Auto Video Insight Infrastructure Stack'
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: AutoVideoInsight
+    Description: Name of the project
+
+Resources:
+  # S3 Bucket for storing video frames and analysis results
+  ProcessingBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${ProjectName}-processing-${AWS::AccountId}
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders: ['*']
+            AllowedMethods: [GET, PUT, POST, DELETE]
+            AllowedOrigins: ['*']
+            MaxAge: 3000
+
+  # Kinesis Video Stream for handling live video feeds
+  VideoStream:
+    Type: AWS::KinesisVideo::Stream
+    Properties:
+      Name: !Sub ${ProjectName}-video-stream
+      DataRetentionInHours: 24
+      MediaType: video/h264
+
+  # IAM Role for Rekognition
+  RekognitionServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: rekognition.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSRekognitionServiceRole
+      Policies:
+        - PolicyName: KinesisVideoAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - kinesisvideo:GetMedia
+                  - kinesisvideo:GetDataEndpoint
+                Resource: !GetAtt VideoStream.Arn
+
+  # Lambda function for processing Rekognition results
+  ProcessingFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub ${ProjectName}-processor
+      Runtime: nodejs18.x
+      Handler: index.handler
+      Code:
+        ZipFile: |
+          exports.handler = async (event) => {
+            console.log('Processing video analysis results:', JSON.stringify(event));
+            return {
+              statusCode: 200,
+              body: JSON.stringify({
+                message: 'Results processed successfully'
+              })
+            };
+          };
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Timeout: 30
+      MemorySize: 128
+
+  # IAM Role for Lambda
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: S3Access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                Resource: !Sub ${ProcessingBucket.Arn}/*
+
+Outputs:
+  ProcessingBucketName:
+    Description: Name of the S3 bucket for processing
+    Value: !Ref ProcessingBucket
+  VideoStreamName:
+    Description: Name of the Kinesis Video Stream
+    Value: !Ref VideoStream
+  ProcessingFunctionArn:
+    Description: ARN of the processing Lambda function
+    Value: !GetAtt ProcessingFunction.Arn
