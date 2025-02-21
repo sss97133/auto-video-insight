@@ -1,5 +1,12 @@
 
-import { RekognitionClient, DetectTextCommand, DetectLabelsCommand } from "npm:@aws-sdk/client-rekognition@^3.0.0";
+import { 
+  RekognitionClient, 
+  DetectTextCommand, 
+  DetectLabelsCommand,
+  TextDetection,
+  DetectTextCommandOutput,
+  DetectLabelsCommandOutput 
+} from "npm:@aws-sdk/client-rekognition@^3.0.0";
 
 export class RekognitionService {
   private client: RekognitionClient;
@@ -9,6 +16,7 @@ export class RekognitionService {
     
     // Validate AWS credentials
     if (!Deno.env.get("AWS_ACCESS_KEY_ID") || !Deno.env.get("AWS_SECRET_ACCESS_KEY")) {
+      console.error('AWS credentials not found in environment');
       throw new Error("AWS credentials not found in environment");
     }
 
@@ -31,7 +39,7 @@ export class RekognitionService {
     }
   }
 
-  async detectText(imageData: ArrayBuffer) {
+  async detectText(imageData: ArrayBuffer): Promise<DetectTextCommandOutput> {
     console.log('Detecting text with Rekognition...');
     try {
       const command = new DetectTextCommand({
@@ -40,8 +48,9 @@ export class RekognitionService {
         }
       });
 
+      console.log('Sending DetectText command to Rekognition...');
       const response = await this.client.send(command);
-      console.log('Text detection complete');
+      console.log('Text detection complete, found:', response.TextDetections?.length, 'text elements');
       return response;
     } catch (error) {
       console.error('Error in detectText:', {
@@ -53,7 +62,7 @@ export class RekognitionService {
     }
   }
 
-  async detectLabels(imageData: ArrayBuffer) {
+  async detectLabels(imageData: ArrayBuffer): Promise<DetectLabelsCommandOutput> {
     console.log('Detecting labels with Rekognition...');
     try {
       const command = new DetectLabelsCommand({
@@ -64,8 +73,9 @@ export class RekognitionService {
         MinConfidence: 70
       });
 
+      console.log('Sending DetectLabels command to Rekognition...');
       const response = await this.client.send(command);
-      console.log('Label detection complete');
+      console.log('Label detection complete, found:', response.Labels?.length, 'labels');
       return response;
     } catch (error) {
       console.error('Error in detectLabels:', {

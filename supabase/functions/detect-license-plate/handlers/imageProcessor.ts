@@ -2,45 +2,56 @@
 import { RekognitionService } from "../services/rekognition.ts";
 
 export async function downloadImage(imageUrl: string): Promise<ArrayBuffer> {
-  console.log('Downloading image:', imageUrl.substring(0, 50) + '...');
-  const response = await fetch(imageUrl);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch image: ${response.statusText}`);
+  console.log('Downloading image from:', imageUrl);
+  try {
+    const response = await fetch(imageUrl);
+    if (!response.ok) {
+      console.error('Image download failed:', {
+        status: response.status,
+        statusText: response.statusText
+      });
+      throw new Error(`Failed to fetch image: ${response.statusText}`);
+    }
+    
+    const buffer = await response.arrayBuffer();
+    console.log('Image downloaded successfully:', {
+      size: buffer.byteLength,
+      type: response.headers.get('content-type')
+    });
+    
+    return buffer;
+  } catch (error) {
+    console.error('Error downloading image:', {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+    });
+    throw error;
   }
-  
-  const buffer = await response.arrayBuffer();
-  console.log('Image downloaded successfully:', {
-    size: buffer.byteLength,
-    type: response.headers.get('content-type')
-  });
-  
-  return buffer;
 }
 
 export async function processImage(imageUrl: string) {
   try {
-    console.log('Starting image processing...');
+    console.log('Starting image processing for:', imageUrl);
     
     // Download and process image
     const imageBuffer = await downloadImage(imageUrl);
+    console.log('Image downloaded, size:', imageBuffer.byteLength);
 
     console.log('Initializing Rekognition service...');
     const rekognition = new RekognitionService();
-    console.log('Rekognition service initialized');
 
-    // Detect text and labels
+    // First detect text to find license plate
     console.log('Detecting text in image...');
-    const [textResponse, labelsResponse] = await Promise.all([
-      rekognition.detectText(imageBuffer),
-      rekognition.detectLabels(imageBuffer)
-    ]);
+    const textResponse = await rekognition.detectText(imageBuffer);
+    console.log('Text detection completed:', textResponse);
 
-    console.log('Raw Rekognition responses:', {
-      text: textResponse,
-      labels: labelsResponse
-    });
+    if (!textResponse.TextDetections || textResponse.TextDetections.length === 0) {
+      console.warn('No text detected in image');
+      throw new Error('No text detected in image');
+    }
 
-    // Process text results
+    // Find license plate - looking for LINE text that matches license plate pattern
     const detectedText = textResponse.TextDetections || [];
     console.log('Processing detected text:', 
       detectedText.map(t => ({
@@ -50,18 +61,23 @@ export async function processImage(imageUrl: string) {
       }))
     );
 
-    // Find license plate
+    // Look for text that matches license plate patterns
     const licensePlate = detectedText.find(text => 
       text.Type === 'LINE' && 
       text.DetectedText && 
-      /^[A-Z0-9]{5,8}$/.test(text.DetectedText)
+      /^[A-Z0-9]{5,8}$/.test(text.DetectedText.replace(/\s/g, ''))
     );
 
     if (!licensePlate) {
+      console.warn('No valid license plate pattern found in detected text');
       throw new Error('No valid license plate detected in image');
     }
 
-    // Find vehicle type
+    // Then detect labels to identify vehicle type
+    console.log('Detecting labels in image...');
+    const labelsResponse = await rekognition.detectLabels(imageBuffer);
+    console.log('Label detection completed:', labelsResponse);
+
     const vehicleLabels = labelsResponse.Labels?.filter(label => 
       ['Car', 'Automobile', 'Vehicle', 'Truck', 'Van', 'SUV', 'Pickup Truck'].includes(label.Name || '')
     ) || [];
@@ -77,7 +93,7 @@ export async function processImage(imageUrl: string) {
 
     // Return processed results
     const result = {
-      license_plate: licensePlate.DetectedText,
+      license_plate: licensePlate.DetectedText?.replace(/\s/g, ''),
       confidence: licensePlate.Confidence ? licensePlate.Confidence / 100 : 0,
       vehicle_type: vehicleType,
       vehicle_details: {
