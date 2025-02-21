@@ -37,21 +37,37 @@ const Dashboard = () => {
     };
   }, [queryClient]);
 
-  // Fetch cameras data
+  // Fetch cameras data with error handling for non-clonable objects
   const { data: cameras, isLoading } = useQuery({
     queryKey: ['cameras'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('cameras')
-        .select('*');
-      
-      if (error) {
+      try {
+        const { data, error } = await supabase
+          .from('cameras')
+          .select('*')
+          .throwOnError();
+        
+        if (error) {
+          console.error('Supabase error:', error);
+          toast.error('Failed to load cameras');
+          throw error;
+        }
+
+        // Ensure we're only returning plain objects that can be cloned
+        return data?.map(camera => ({
+          ...camera,
+          configuration: camera.configuration || {},
+          created_at: camera.created_at ? new Date(camera.created_at).toISOString() : null,
+          updated_at: camera.updated_at ? new Date(camera.updated_at).toISOString() : null
+        })) || [];
+      } catch (error) {
+        console.error('Error fetching cameras:', error);
         toast.error('Failed to load cameras');
         throw error;
       }
-      
-      return data;
     },
+    retry: 1,
+    staleTime: 1000 * 60, // 1 minute
   });
 
   return (
@@ -96,3 +112,4 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
+
