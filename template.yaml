@@ -9,75 +9,7 @@ Parameters:
     Description: Name of the project (must be lowercase)
 
 Resources:
-  # S3 Bucket for storing video frames and analysis results
-  ProcessingBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: !Sub ${ProjectName}-processing-${AWS::AccountId}
-      CorsConfiguration:
-        CorsRules:
-          - AllowedHeaders: ['*']
-            AllowedMethods: [GET, PUT, POST, DELETE]
-            AllowedOrigins: ['*']
-            MaxAge: 3000
-
-  # Kinesis Video Stream for handling live video feeds
-  VideoStream:
-    Type: AWS::KinesisVideo::Stream
-    Properties:
-      Name: !Sub ${ProjectName}-video-stream
-      DataRetentionInHours: 24
-      MediaType: video/h264
-
-  # Rekognition Stream Processor
-  RekognitionStreamProcessor:
-    Type: AWS::Rekognition::StreamProcessor
-    Properties:
-      Name: !Sub ${ProjectName}-stream-processor
-      RoleArn: !GetAtt RekognitionServiceRole.Arn
-      KinesisVideoStream:
-        Arn: !GetAtt VideoStream.Arn
-      KinesisDataStream:
-        Arn: !GetAtt AnalysisDataStream.Arn
-      ConnectedHomeSettings:
-        Labels: ["ALL"]
-        MinConfidence: 80
-
-  # Kinesis Data Stream for Rekognition results
-  AnalysisDataStream:
-    Type: AWS::Kinesis::Stream
-    Properties:
-      Name: !Sub ${ProjectName}-analysis-stream
-      ShardCount: 1
-      RetentionPeriodHours: 24
-
-  # IAM Role for Rekognition
-  RekognitionServiceRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: rekognition.amazonaws.com
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AWSRekognitionServiceRole
-      Policies:
-        - PolicyName: KinesisAccess
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - kinesisvideo:GetMedia
-                  - kinesisvideo:GetDataEndpoint
-                  - kinesis:PutRecord
-                  - kinesis:PutRecords
-                Resource: 
-                  - !GetAtt VideoStream.Arn
-                  - !GetAtt AnalysisDataStream.Arn
+  # ... keep existing code (S3 Bucket, Kinesis Video Stream, RekognitionStreamProcessor and IAM Role)
 
   # Lambda function for processing Rekognition results
   ProcessingFunction:
@@ -94,6 +26,7 @@ Resources:
 
           exports.handler = async (event) => {
             console.log('Processing video analysis results:', JSON.stringify(event));
+            const results = [];
             
             try {
               // Process Kinesis records
@@ -101,37 +34,124 @@ Resources:
                 const data = JSON.parse(Buffer.from(record.kinesis.data, 'base64').toString());
                 console.log('Decoded Kinesis record:', data);
                 
-                // Store analysis results in S3
-                const timestamp = new Date().toISOString();
-                const key = `analysis-results/${timestamp}.json`;
+                // Extract timestamp from the Rekognition result
+                const timestamp = data.InputInformation?.KinesisVideo?.ServerTimestamp 
+                  || new Date().toISOString();
+                
+                const analysisResult = {
+                  timestamp,
+                  source_stream: data.InputInformation?.KinesisVideo?.StreamArn,
+                  detected_objects: data.DetectedObjects || [],
+                  detected_faces: data.FaceSearchResponse || [],
+                  detected_labels: data.Labels || [],
+                  confidence_threshold: data.ConnectedHomeSettings?.MinConfidence || 80,
+                  frame_info: {
+                    height: data.InputInformation?.KinesisVideo?.FrameHeight,
+                    width: data.InputInformation?.KinesisVideo?.FrameWidth,
+                  }
+                };
+                
+                // Store individual analysis result
+                const objectKey = `analysis-results/${timestamp}-${record.kinesis.sequenceNumber}.json`;
                 
                 await s3.putObject({
                   Bucket: process.env.PROCESSING_BUCKET,
-                  Key: key,
-                  Body: JSON.stringify(data),
-                  ContentType: 'application/json'
+                  Key: objectKey,
+                  Body: JSON.stringify(analysisResult),
+                  ContentType: 'application/json',
+                  Metadata: {
+                    'analysis-type': 'rekognition',
+                    'source-stream': data.InputInformation?.KinesisVideo?.StreamArn || 'unknown',
+                    'sequence-number': record.kinesis.sequenceNumber
+                  }
                 }).promise();
                 
-                console.log('Stored analysis results in S3:', key);
+                console.log('Stored analysis results in S3:', objectKey);
+                results.push(analysisResult);
                 
-                // If detected objects meet certain criteria, you can trigger notifications or actions
-                if (data.DetectedObjects && data.DetectedObjects.length > 0) {
-                  const highConfidenceObjects = data.DetectedObjects.filter(obj => obj.Confidence > 90);
+                // Process high-confidence detections
+                if (analysisResult.detected_objects && analysisResult.detected_objects.length > 0) {
+                  const highConfidenceObjects = analysisResult.detected_objects
+                    .filter(obj => obj.Confidence > 90);
+                    
                   if (highConfidenceObjects.length > 0) {
                     console.log('High confidence detections:', highConfidenceObjects);
-                    // Implement notification logic here if needed
+                    
+                    // Store high confidence detections separately
+                    const confidenceKey = `high-confidence/${timestamp}-${record.kinesis.sequenceNumber}.json`;
+                    await s3.putObject({
+                      Bucket: process.env.PROCESSING_BUCKET,
+                      Key: confidenceKey,
+                      Body: JSON.stringify({
+                        timestamp,
+                        detections: highConfidenceObjects
+                      }),
+                      ContentType: 'application/json',
+                      Metadata: {
+                        'analysis-type': 'high-confidence',
+                        'confidence-threshold': '90',
+                        'source-stream': data.InputInformation?.KinesisVideo?.StreamArn || 'unknown'
+                      }
+                    }).promise();
+                    
+                    console.log('Stored high confidence detections:', confidenceKey);
                   }
                 }
               }
               
+              // Generate summary report
+              const summaryKey = `summaries/${new Date().toISOString()}-batch-summary.json`;
+              await s3.putObject({
+                Bucket: process.env.PROCESSING_BUCKET,
+                Key: summaryKey,
+                Body: JSON.stringify({
+                  processed_at: new Date().toISOString(),
+                  record_count: event.Records.length,
+                  results_summary: results.map(r => ({
+                    timestamp: r.timestamp,
+                    object_count: r.detected_objects?.length || 0,
+                    face_count: r.detected_faces?.length || 0,
+                    label_count: r.detected_labels?.length || 0
+                  }))
+                }),
+                ContentType: 'application/json'
+              }).promise();
+              
+              console.log('Generated batch summary:', summaryKey);
+              
               return {
                 statusCode: 200,
                 body: JSON.stringify({
-                  message: 'Results processed successfully'
+                  message: 'Results processed successfully',
+                  processed_records: event.Records.length,
+                  summary_location: summaryKey
                 })
               };
             } catch (error) {
               console.error('Error processing results:', error);
+              
+              // Store error information for debugging
+              const errorKey = `errors/${new Date().toISOString()}-error.json`;
+              try {
+                await s3.putObject({
+                  Bucket: process.env.PROCESSING_BUCKET,
+                  Key: errorKey,
+                  Body: JSON.stringify({
+                    error: {
+                      message: error.message,
+                      stack: error.stack,
+                      time: new Date().toISOString()
+                    },
+                    event: event
+                  }),
+                  ContentType: 'application/json'
+                }).promise();
+                
+                console.log('Stored error details:', errorKey);
+              } catch (s3Error) {
+                console.error('Failed to store error details:', s3Error);
+              }
+              
               throw error;
             }
           };
@@ -142,71 +162,5 @@ Resources:
       Timeout: 30
       MemorySize: 128
 
-  # Lambda Permission to read from Kinesis
-  LambdaKinesisPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !Ref ProcessingFunction
-      Principal: kinesis.amazonaws.com
-      SourceArn: !GetAtt AnalysisDataStream.Arn
-
-  # Event Source Mapping for Lambda
-  LambdaEventSourceMapping:
-    Type: AWS::Lambda::EventSourceMapping
-    Properties:
-      EventSourceArn: !GetAtt AnalysisDataStream.Arn
-      FunctionName: !Ref ProcessingFunction
-      StartingPosition: LATEST
-      BatchSize: 100
-      MaximumBatchingWindowInSeconds: 5
-
-  # IAM Role for Lambda
-  LambdaExecutionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: lambda.amazonaws.com
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
-      Policies:
-        - PolicyName: KinesisAccess
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - kinesis:GetRecords
-                  - kinesis:GetShardIterator
-                  - kinesis:DescribeStream
-                  - kinesis:ListShards
-                Resource: !GetAtt AnalysisDataStream.Arn
-        - PolicyName: S3Access
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - s3:PutObject
-                  - s3:GetObject
-                Resource: !Sub ${ProcessingBucket.Arn}/*
-
-Outputs:
-  ProcessingBucketName:
-    Description: Name of the S3 bucket for processing
-    Value: !Ref ProcessingBucket
-  VideoStreamName:
-    Description: Name of the Kinesis Video Stream
-    Value: !Ref VideoStream
-  ProcessingFunctionArn:
-    Description: ARN of the processing Lambda function
-    Value: !GetAtt ProcessingFunction.Arn
-  AnalysisStreamName:
-    Description: Name of the Kinesis Data Stream for analysis results
-    Value: !Ref AnalysisDataStream
+  # ... keep existing code (LambdaKinesisPermission, LambdaEventSourceMapping, LambdaExecutionRole and Outputs)
 
