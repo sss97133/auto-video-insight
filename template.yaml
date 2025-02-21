@@ -5,8 +5,8 @@ Description: 'Auto Video Insight Infrastructure Stack'
 Parameters:
   ProjectName:
     Type: String
-    Default: AutoVideoInsight
-    Description: Name of the project
+    Default: autovideoinsight
+    Description: Name of the project (must be lowercase)
 
 Resources:
   # S3 Bucket for storing video frames and analysis results
