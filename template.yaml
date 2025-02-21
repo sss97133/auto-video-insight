@@ -29,6 +29,28 @@ Resources:
       DataRetentionInHours: 24
       MediaType: video/h264
 
+  # Rekognition Stream Processor
+  RekognitionStreamProcessor:
+    Type: AWS::Rekognition::StreamProcessor
+    Properties:
+      Name: !Sub ${ProjectName}-stream-processor
+      RoleArn: !GetAtt RekognitionServiceRole.Arn
+      KinesisVideoStream:
+        Arn: !GetAtt VideoStream.Arn
+      KinesisDataStream:
+        Arn: !GetAtt AnalysisDataStream.Arn
+      ConnectedHomeSettings:
+        Labels: ["ALL"]
+        MinConfidence: 80
+
+  # Kinesis Data Stream for Rekognition results
+  AnalysisDataStream:
+    Type: AWS::Kinesis::Stream
+    Properties:
+      Name: !Sub ${ProjectName}-analysis-stream
+      ShardCount: 1
+      RetentionPeriodHours: 24
+
   # IAM Role for Rekognition
   RekognitionServiceRole:
     Type: AWS::IAM::Role
@@ -43,7 +65,7 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSRekognitionServiceRole
       Policies:
-        - PolicyName: KinesisVideoAccess
+        - PolicyName: KinesisAccess
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
@@ -51,7 +73,11 @@ Resources:
                 Action:
                   - kinesisvideo:GetMedia
                   - kinesisvideo:GetDataEndpoint
-                Resource: !GetAtt VideoStream.Arn
+                  - kinesis:PutRecord
+                  - kinesis:PutRecords
+                Resource: 
+                  - !GetAtt VideoStream.Arn
+                  - !GetAtt AnalysisDataStream.Arn
 
   # Lambda function for processing Rekognition results
   ProcessingFunction:
@@ -62,18 +88,78 @@ Resources:
       Handler: index.handler
       Code:
         ZipFile: |
+          const AWS = require('aws-sdk');
+          const s3 = new AWS.S3();
+          const kinesis = new AWS.Kinesis();
+
           exports.handler = async (event) => {
             console.log('Processing video analysis results:', JSON.stringify(event));
-            return {
-              statusCode: 200,
-              body: JSON.stringify({
-                message: 'Results processed successfully'
-              })
-            };
+            
+            try {
+              // Process Kinesis records
+              for (const record of event.Records) {
+                const data = JSON.parse(Buffer.from(record.kinesis.data, 'base64').toString());
+                console.log('Decoded Kinesis record:', data);
+                
+                // Store analysis results in S3
+                const timestamp = new Date().toISOString();
+                const key = `analysis-results/${timestamp}.json`;
+                
+                await s3.putObject({
+                  Bucket: process.env.PROCESSING_BUCKET,
+                  Key: key,
+                  Body: JSON.stringify(data),
+                  ContentType: 'application/json'
+                }).promise();
+                
+                console.log('Stored analysis results in S3:', key);
+                
+                // If detected objects meet certain criteria, you can trigger notifications or actions
+                if (data.DetectedObjects && data.DetectedObjects.length > 0) {
+                  const highConfidenceObjects = data.DetectedObjects.filter(obj => obj.Confidence > 90);
+                  if (highConfidenceObjects.length > 0) {
+                    console.log('High confidence detections:', highConfidenceObjects);
+                    // Implement notification logic here if needed
+                  }
+                }
+              }
+              
+              return {
+                statusCode: 200,
+                body: JSON.stringify({
+                  message: 'Results processed successfully'
+                })
+              };
+            } catch (error) {
+              console.error('Error processing results:', error);
+              throw error;
+            }
           };
+      Environment:
+        Variables:
+          PROCESSING_BUCKET: !Ref ProcessingBucket
       Role: !GetAtt LambdaExecutionRole.Arn
       Timeout: 30
       MemorySize: 128
+
+  # Lambda Permission to read from Kinesis
+  LambdaKinesisPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ProcessingFunction
+      Principal: kinesis.amazonaws.com
+      SourceArn: !GetAtt AnalysisDataStream.Arn
+
+  # Event Source Mapping for Lambda
+  LambdaEventSourceMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      EventSourceArn: !GetAtt AnalysisDataStream.Arn
+      FunctionName: !Ref ProcessingFunction
+      StartingPosition: LATEST
+      BatchSize: 100
+      MaximumBatchingWindowInSeconds: 5
 
   # IAM Role for Lambda
   LambdaExecutionRole:
@@ -89,6 +175,17 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
       Policies:
+        - PolicyName: KinesisAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - kinesis:GetRecords
+                  - kinesis:GetShardIterator
+                  - kinesis:DescribeStream
+                  - kinesis:ListShards
+                Resource: !GetAtt AnalysisDataStream.Arn
         - PolicyName: S3Access
           PolicyDocument:
             Version: '2012-10-17'
@@ -109,3 +206,7 @@ Outputs:
   ProcessingFunctionArn:
     Description: ARN of the processing Lambda function
     Value: !GetAtt ProcessingFunction.Arn
+  AnalysisStreamName:
+    Description: Name of the Kinesis Data Stream for analysis results
+    Value: !Ref AnalysisDataStream
+
