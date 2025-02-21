@@ -23,29 +23,29 @@ const CameraCard = ({ camera }: CameraCardProps) => {
   };
 
   return (
-    <Card className="hover-scale glass-card p-4">
-      <div className="aspect-video bg-gray-800 rounded-lg mb-3">
+    <Card className="hover-scale glass-card p-4 overflow-hidden">
+      <div className="aspect-video bg-gray-800 rounded-lg mb-3 relative w-full h-[200px]">
         {camera.streaming_url ? (
           <video
-            className="w-full h-full rounded-lg object-cover"
+            className="absolute inset-0 w-full h-full rounded-lg object-cover"
             src={camera.streaming_url}
             autoPlay
             muted
             playsInline
           />
         ) : (
-          <div className="h-full flex items-center justify-center text-gray-400">
+          <div className="absolute inset-0 flex items-center justify-center text-gray-400">
             <Video size={40} />
           </div>
         )}
       </div>
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <div>
-            <span className="text-sm font-medium">{camera.name}</span>
-            <p className="text-xs text-gray-500">{camera.location}</p>
+          <div className="min-w-0 flex-1">
+            <span className="text-sm font-medium block truncate">{camera.name}</span>
+            <p className="text-xs text-gray-500 truncate">{camera.location}</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-shrink-0">
             <Button
               variant="ghost"
               size="icon"
@@ -79,12 +79,12 @@ const CameraCard = ({ camera }: CameraCardProps) => {
         </div>
         
         <div className="flex items-center gap-2 mt-2">
-          <Settings size={16} className="text-gray-500" />
+          <Settings size={16} className="text-gray-500 flex-shrink-0" />
           <Select
             defaultValue={camera.configuration?.processor_type || 'none'}
             onValueChange={handleProcessorChange}
           >
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-[180px] flex-shrink-0">
               <SelectValue placeholder="Select processor" />
             </SelectTrigger>
             <SelectContent>
@@ -100,3 +100,4 @@ const CameraCard = ({ camera }: CameraCardProps) => {
 };
 
 export default CameraCard;
+
