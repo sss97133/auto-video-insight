@@ -36,7 +36,13 @@ const BrowserStreaming = ({
     const loadDevices = async () => {
       try {
         // Request permission to access devices
-        await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        
+        // Immediately use this stream for preview
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          mediaStreamRef.current = stream;
+        }
         
         const devices = await navigator.mediaDevices.enumerateDevices();
         const videoDevices = devices.filter(device => device.kind === "videoinput");
@@ -73,6 +79,13 @@ const BrowserStreaming = ({
     };
 
     loadDevices();
+
+    // Cleanup
+    return () => {
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach(track => track.stop());
+      }
+    };
   }, []);
 
   const startPreview = async () => {
@@ -126,11 +139,12 @@ const BrowserStreaming = ({
     toast.success("Streaming stopped");
   };
 
+  // Listen for device selection changes
   useEffect(() => {
-    return () => {
-      stopPreview();
-    };
-  }, []);
+    if (selectedDevices.videoDeviceId || selectedDevices.audioDeviceId) {
+      startPreview();
+    }
+  }, [selectedDevices.videoDeviceId, selectedDevices.audioDeviceId]);
 
   return (
     <div className="space-y-4">
@@ -141,7 +155,6 @@ const BrowserStreaming = ({
             value={selectedDevices.videoDeviceId}
             onValueChange={(value) => {
               setSelectedDevices(prev => ({ ...prev, videoDeviceId: value }));
-              startPreview();
             }}
           >
             <SelectTrigger>
@@ -163,7 +176,6 @@ const BrowserStreaming = ({
             value={selectedDevices.audioDeviceId}
             onValueChange={(value) => {
               setSelectedDevices(prev => ({ ...prev, audioDeviceId: value }));
-              startPreview();
             }}
           >
             <SelectTrigger>
@@ -203,3 +215,4 @@ const BrowserStreaming = ({
 };
 
 export default BrowserStreaming;
+
