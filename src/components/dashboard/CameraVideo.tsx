@@ -12,36 +12,74 @@ const CameraVideo = ({ streamingUrl, isActive }: CameraVideoProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   const initializeVideo = async () => {
-    if (!videoRef.current || !streamingUrl) return;
+    if (!videoRef.current || !streamingUrl) {
+      console.log("Video initialization skipped - missing ref or URL:", { 
+        hasRef: !!videoRef.current, 
+        streamingUrl 
+      });
+      return;
+    }
 
     try {
-      // Reset video element
+      console.log("Starting video initialization for URL:", streamingUrl);
+      
+      // Reset video element first
       videoRef.current.src = '';
       videoRef.current.load();
+      console.log("Video element reset");
 
-      // Set new source and play
+      // Set new source
       videoRef.current.src = streamingUrl;
+      console.log("New video source set:", streamingUrl);
       
+      // Try to play
+      console.log("Attempting to play video...");
       const playPromise = videoRef.current.play();
+      
       if (playPromise !== undefined) {
-        playPromise.catch(error => {
-          console.error("Error playing video:", error);
-          toast.error("Failed to start video stream");
-        });
+        playPromise
+          .then(() => {
+            console.log("Video playback started successfully");
+          })
+          .catch(error => {
+            console.error("Video playback failed:", {
+              error,
+              videoState: {
+                readyState: videoRef.current?.readyState,
+                networkState: videoRef.current?.networkState,
+                error: videoRef.current?.error
+              }
+            });
+            toast.error("Failed to start video stream");
+          });
       }
     } catch (error) {
-      console.error("Error initializing video:", error);
+      console.error("Video initialization failed:", {
+        error,
+        streamingUrl,
+        videoElementState: videoRef.current ? {
+          readyState: videoRef.current.readyState,
+          networkState: videoRef.current.networkState,
+          error: videoRef.current.error
+        } : 'No video element'
+      });
       toast.error("Failed to initialize video stream");
     }
   };
 
   useEffect(() => {
+    console.log("CameraVideo useEffect triggered:", {
+      isActive,
+      streamingUrl,
+      hasVideoRef: !!videoRef.current
+    });
+
     if (isActive) {
-      console.log("Initializing video with URL:", streamingUrl);
       initializeVideo();
     } else {
       // Stop video if camera is not active
       if (videoRef.current) {
+        console.log("Stopping video playback - camera inactive");
         videoRef.current.pause();
         videoRef.current.src = '';
       }
@@ -50,11 +88,14 @@ const CameraVideo = ({ streamingUrl, isActive }: CameraVideoProps) => {
     return () => {
       // Cleanup on unmount
       if (videoRef.current) {
+        console.log("Cleaning up video element");
         videoRef.current.pause();
         videoRef.current.src = '';
       }
     };
   }, [streamingUrl, isActive]);
+
+  console.log("CameraVideo render:", { streamingUrl, isActive });
 
   return (
     <div className="aspect-video bg-gray-800 rounded-lg mb-3 relative w-full h-[200px]">
@@ -77,3 +118,4 @@ const CameraVideo = ({ streamingUrl, isActive }: CameraVideoProps) => {
 };
 
 export default CameraVideo;
+
