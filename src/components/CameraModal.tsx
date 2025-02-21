@@ -48,6 +48,13 @@ const CameraModal = ({ isOpen, onClose }: CameraModalProps) => {
             <BrowserStreaming
               rtmpServerUrl={rtmpServerUrl}
               streamKey={streamKey}
+              name={name}
+              setName={setName}
+              location={location}
+              setLocation={setLocation}
+              onSubmit={handleSubmit}
+              isSubmitting={isSubmitting}
+              onClose={onClose}
             />
           </TabsContent>
 
