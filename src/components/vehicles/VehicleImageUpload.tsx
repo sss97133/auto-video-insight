@@ -67,9 +67,7 @@ const VehicleImageUpload = () => {
       if (uploadError) {
         console.error('Upload error:', {
           error: uploadError,
-          message: uploadError.message,
-          details: uploadError.details,
-          hint: uploadError.hint
+          message: uploadError.message
         });
         setProgress(prev => ({ ...prev, upload: 'error' }));
         throw new Error(`Upload failed: ${uploadError.message}`);
@@ -102,8 +100,6 @@ const VehicleImageUpload = () => {
 
       // Log the full response for debugging
       console.log('Edge function response:', {
-        status: response.status,
-        statusText: response.statusText,
         error: response.error,
         data: response.data,
       });
@@ -112,8 +108,7 @@ const VehicleImageUpload = () => {
       if (response.error) {
         console.error('Edge function error:', {
           error: response.error,
-          message: response.error.message,
-          details: response.error.details || 'No details provided'
+          message: response.error.message || 'Unknown error'
         });
         setProgress(prev => ({ ...prev, recognition: 'error' }));
         throw new Error(`Detection failed: ${response.error.message || 'Unknown error'}`);
@@ -145,9 +140,7 @@ const VehicleImageUpload = () => {
       if (insertError) {
         console.error('Database insert error:', {
           error: insertError,
-          message: insertError.message,
-          details: insertError.details,
-          hint: insertError.hint
+          message: insertError.message
         });
         setProgress(prev => ({ ...prev, saving: 'error' }));
         throw new Error(`Failed to save vehicle data: ${insertError.message}`);
@@ -232,4 +225,3 @@ const VehicleImageUpload = () => {
 };
 
 export default VehicleImageUpload;
-
