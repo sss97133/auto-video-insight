@@ -1,5 +1,5 @@
 
-import React, { useEffect } from "react";
+import React, { useEffect, useLayoutEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -14,7 +14,14 @@ import AuditList from "./audits/AuditList";
 
 const Dashboard = () => {
   const [isModalOpen, setIsModalOpen] = React.useState(false);
+  const [mounted, setMounted] = useState(false);
   const queryClient = useQueryClient();
+
+  // Ensure component is mounted before rendering resize-sensitive components
+  useLayoutEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
 
   // Set up realtime subscription for camera updates
   useEffect(() => {
@@ -38,7 +45,7 @@ const Dashboard = () => {
     };
   }, [queryClient]);
 
-  // Fetch cameras data with error handling for non-clonable objects
+  // Fetch cameras data with error handling
   const { data: cameras, isLoading } = useQuery<Camera[]>({
     queryKey: ['cameras'],
     queryFn: async () => {
@@ -55,7 +62,6 @@ const Dashboard = () => {
         }
 
         return (data || []).map(camera => {
-          // Safely access configuration object with type checking
           const config = camera.configuration as Record<string, any> | null;
           const settings = config?.settings as Record<string, any> | undefined;
 
@@ -88,6 +94,10 @@ const Dashboard = () => {
     }
   });
 
+  if (!mounted) {
+    return null; // Prevent flash of content before hydration
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-6">
       <header className="mb-8">
@@ -98,27 +108,31 @@ const Dashboard = () => {
       </header>
 
       <main className="space-y-6">
-        <StatsSection cameras={cameras} />
+        {mounted && (
+          <>
+            <StatsSection cameras={cameras} />
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2">
-            <CameraGrid 
-              cameras={cameras}
-              isLoading={isLoading}
-              onAddCamera={() => setIsModalOpen(true)}
-            />
-          </div>
-          <section className="fade-in">
-            <AlertsDisplay />
-          </section>
-        </div>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2">
+                <CameraGrid 
+                  cameras={cameras}
+                  isLoading={isLoading}
+                  onAddCamera={() => setIsModalOpen(true)}
+                />
+              </div>
+              <section className="fade-in">
+                <AlertsDisplay />
+              </section>
+            </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <VehicleList />
-          <AuditList />
-        </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <VehicleList />
+              <AuditList />
+            </div>
 
-        <AnalyticsDashboard />
+            <AnalyticsDashboard />
+          </>
+        )}
       </main>
 
       <CameraModal 
@@ -130,3 +144,4 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
+
