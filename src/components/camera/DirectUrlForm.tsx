@@ -1,5 +1,5 @@
 
-import React from "react";
+import React, { useEffect } from "react";
 import { Label } from "../ui/label";
 import { Input } from "../ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
@@ -41,12 +41,20 @@ const DirectUrlForm = ({
     setStreamingUrl(url);
   };
 
+  // Clean up form data when component unmounts
+  useEffect(() => {
+    return () => {
+      setStreamingUrl('');
+      setType('ip');
+    };
+  }, [setStreamingUrl, setType]);
+
   return (
     <div className="space-y-4">
       <div className="space-y-2">
         <Label htmlFor="type">Camera Type</Label>
         <Select value={type} onValueChange={setType}>
-          <SelectTrigger>
+          <SelectTrigger id="type">
             <SelectValue placeholder="Select camera type" />
           </SelectTrigger>
           <SelectContent>
