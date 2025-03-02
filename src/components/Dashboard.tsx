@@ -15,6 +15,7 @@ import AuditList from "./audits/AuditList";
 const Dashboard = () => {
   const [isModalOpen, setIsModalOpen] = React.useState(false);
   const [mounted, setMounted] = useState(false);
+  const [connectionError, setConnectionError] = useState(false);
   const queryClient = useQueryClient();
 
   // Ensure component is mounted before rendering resize-sensitive components
@@ -38,29 +39,38 @@ const Dashboard = () => {
           queryClient.invalidateQueries({ queryKey: ['cameras'] });
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('Supabase channel status:', status);
+        if (status !== 'SUBSCRIBED') {
+          console.warn('Supabase real-time subscription not established');
+        }
+      });
 
     return () => {
       supabase.removeChannel(channel);
     };
   }, [queryClient]);
 
-  // Fetch cameras data with error handling
-  const { data: cameras, isLoading } = useQuery<Camera[]>({
+  // Fetch cameras data with improved error handling
+  const { data: cameras, isLoading, error } = useQuery<Camera[]>({
     queryKey: ['cameras'],
     queryFn: async () => {
       try {
+        console.log('Attempting to fetch cameras from Supabase...');
         const { data, error } = await supabase
           .from('cameras')
-          .select('*')
-          .throwOnError();
+          .select('*');
         
         if (error) {
-          console.error('Supabase error:', error);
-          toast.error('Failed to load cameras');
+          console.error('Supabase query error:', error);
+          toast.error(`Failed to load cameras: ${error.message}`);
+          setConnectionError(true);
           throw error;
         }
 
+        console.log('Cameras fetched successfully:', data?.length || 0, 'cameras found');
+        setConnectionError(false);
+        
         return (data || []).map(camera => {
           const config = camera.configuration as Record<string, any> | null;
           const settings = config?.settings as Record<string, any> | undefined;
@@ -88,10 +98,12 @@ const Dashboard = () => {
         });
       } catch (error) {
         console.error('Error fetching cameras:', error);
-        toast.error('Failed to load cameras');
+        setConnectionError(true);
         throw error;
       }
-    }
+    },
+    retry: 3,
+    retryDelay: 2000,
   });
 
   if (!mounted) {
@@ -108,6 +120,22 @@ const Dashboard = () => {
       </header>
 
       <main className="space-y-6">
+        {connectionError && (
+          <div className="bg-orange-100 border-l-4 border-orange-500 text-orange-700 p-4 mb-4 rounded">
+            <div className="flex items-center">
+              <div className="py-1">
+                <svg className="h-6 w-6 text-orange-500 mr-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <div>
+                <p className="font-bold">Connection Issue</p>
+                <p className="text-sm">Unable to connect to the database. Please check your network connection and try again.</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {mounted && (
           <>
             <StatsSection cameras={cameras} />
@@ -144,4 +172,3 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
-

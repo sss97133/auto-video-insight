@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { VideoProcessorType } from "@/types/video-processor";
@@ -12,6 +13,7 @@ export const deleteCamera = async (id: string) => {
 
     if (error) {
       console.error('Error deleting camera:', error);
+      toast.error(`Failed to remove camera: ${error.message}`);
       throw error;
     }
 
@@ -19,7 +21,11 @@ export const deleteCamera = async (id: string) => {
     toast.success('Camera removed successfully');
   } catch (error) {
     console.error('Failed to delete camera:', error);
-    toast.error('Failed to remove camera');
+    if (error instanceof Error) {
+      toast.error(`Failed to remove camera: ${error.message}`);
+    } else {
+      toast.error('Failed to remove camera: Unknown error');
+    }
   }
 };
 
@@ -34,6 +40,7 @@ export const toggleCameraStatus = async (id: string, currentStatus: string) => {
 
     if (error) {
       console.error('Error in toggleCameraStatus:', error);
+      toast.error(`Failed to update camera status: ${error.message}`);
       throw error;
     }
 
@@ -41,7 +48,11 @@ export const toggleCameraStatus = async (id: string, currentStatus: string) => {
     toast.success(`Camera ${newStatus === 'active' ? 'activated' : 'deactivated'}`);
   } catch (error) {
     console.error('Failed to update camera status:', error);
-    toast.error('Failed to update camera status');
+    if (error instanceof Error) {
+      toast.error(`Failed to update camera status: ${error.message}`);
+    } else {
+      toast.error('Failed to update camera status: Unknown error');
+    }
   }
 };
 
@@ -55,6 +66,7 @@ export const toggleRecording = async (id: string, isCurrentlyRecording: boolean)
 
     if (updateError) {
       console.error('Error updating camera recording state:', updateError);
+      toast.error(`Failed to toggle recording: ${updateError.message}`);
       throw updateError;
     }
 
@@ -73,6 +85,7 @@ export const toggleRecording = async (id: string, isCurrentlyRecording: boolean)
 
       if (recordingError) {
         console.error('Error creating recording entry:', recordingError);
+        toast.error(`Failed to start recording: ${recordingError.message}`);
         throw recordingError;
       }
       toast.success('Recording started');
@@ -89,13 +102,18 @@ export const toggleRecording = async (id: string, isCurrentlyRecording: boolean)
 
       if (stopError) {
         console.error('Error stopping recording:', stopError);
+        toast.error(`Failed to stop recording: ${stopError.message}`);
         throw stopError;
       }
       toast.success('Recording stopped');
     }
   } catch (error) {
     console.error('Failed to toggle recording:', error);
-    toast.error('Failed to toggle recording');
+    if (error instanceof Error) {
+      toast.error(`Failed to toggle recording: ${error.message}`);
+    } else {
+      toast.error('Failed to toggle recording: Unknown error');
+    }
   }
 };
 
@@ -109,10 +127,11 @@ export const shareRecording = async (cameraId: string) => {
       .eq('status', 'completed')
       .order('end_time', { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
 
     if (fetchError) {
       console.error('Error fetching recording:', fetchError);
+      toast.error(`Failed to fetch recording: ${fetchError.message}`);
       throw fetchError;
     }
 
@@ -139,6 +158,7 @@ export const shareRecording = async (cameraId: string) => {
 
     if (shareError) {
       console.error('Error creating share entry:', shareError);
+      toast.error(`Failed to create share entry: ${shareError.message}`);
       throw shareError;
     }
 
@@ -149,7 +169,11 @@ export const shareRecording = async (cameraId: string) => {
     toast.success('Share link copied to clipboard! The link will expire in 7 days.');
   } catch (error) {
     console.error('Failed to share recording:', error);
-    toast.error('Failed to share recording');
+    if (error instanceof Error) {
+      toast.error(`Failed to share recording: ${error.message}`);
+    } else {
+      toast.error('Failed to share recording: Unknown error');
+    }
   }
 };
 
@@ -173,6 +197,7 @@ export const updateCameraProcessor = async (id: string, processorType: VideoProc
 
     if (error) {
       console.error('Error updating processor:', error);
+      toast.error(`Failed to update video processor: ${error.message}`);
       throw error;
     }
 
@@ -180,6 +205,10 @@ export const updateCameraProcessor = async (id: string, processorType: VideoProc
     toast.success(`Video processor updated to ${processorType}`);
   } catch (error) {
     console.error('Failed to update video processor:', error);
-    toast.error('Failed to update video processor');
+    if (error instanceof Error) {
+      toast.error(`Failed to update video processor: ${error.message}`);
+    } else {
+      toast.error('Failed to update video processor: Unknown error');
+    }
   }
 };
